@@ -1,0 +1,402 @@
+---
+title: Alerts Center
+description: Unified hub for all business alerts with automated detection, severity classification, and suggested actions
+icon: "bell"
+---
+
+## Overview
+
+The Alerts Center is your proactive monitoring system. Instead of discovering problems after they impact results, the alert engine continuously evaluates your sales data and surfaces issues requiring attention — along with specific recommended actions.
+
+<Note>
+  The Alerts Center transforms reactive management into proactive problem-solving by detecting issues early and recommending next steps.
+</Note>
+
+## Business Value
+
+<Check>**Early Warning System** — Detect problems before they become crises</Check>
+<Check>**Prioritized Actions** — Focus on high-impact issues first based on severity</Check>
+<Check>**Contextual Guidance** — Each alert includes specific entity details and suggested actions</Check>
+<Check>**Team Accountability** — Track which alerts have been reviewed and addressed</Check>
+
+## Alert Severity Levels
+
+All alerts are classified into four severity tiers:
+
+<CardGroup cols={2}>
+  <Card title="🔴 Critical" icon="circle-exclamation" color="#E84855">
+    **Immediate action required** — Major business impact
+    
+    Examples:
+    - Salesperson below 70% quota
+    - Key customer churning
+    - Margin below minimum threshold
+  </Card>
+  
+  <Card title="🟡 Medium" icon="triangle-exclamation" color="#FFB347">
+    **Action needed this week** — Significant but not urgent
+    
+    Examples:
+    - Portfolio coverage below 60%
+    - Product sales down 30%+
+    - Customer concentration risk
+  </Card>
+  
+  <Card title="🔵 Low" icon="circle-info" color="#3B82F6">
+    **Monitor closely** — Informational awareness
+    
+    Examples:
+    - Customer inactive for 20-30 days
+    - Minor margin compression
+    - SKU rotation slowing
+  </Card>
+  
+  <Card title="🟢 Opportunity" icon="lightbulb" color="#00C49F">
+    **Growth potential detected** — Positive action recommended
+    
+    Examples:
+    - High-frequency customer with low ticket (upsell opportunity)
+    - Fast-growing product (increase inventory)
+    - B-category customer trending to A
+  </Card>
+</CardGroup>
+
+## Alert Summary Dashboard
+
+The top of the page displays alert counts by severity:
+
+- **Critical (🔴):** Number requiring immediate action
+- **Medium (🟡):** Number needing attention this week
+- **Low (🔵):** Informational items to monitor
+- **Opportunities (🟢):** Growth actions to consider
+- **Total Alerts:** All active alerts for current filters
+
+<Tip>
+  If you have 5+ critical alerts, prioritize addressing those before reviewing medium/low items. Focus resources where impact is highest.
+</Tip>
+
+## Alert Filtering
+
+Refine the alert list using three filter dimensions:
+
+### Severity Filter
+Show only specific severity levels:
+- Select multiple severities
+- Useful for daily triage (review critical only)
+- Or weekly planning (review all medium/low)
+
+### Entity Type Filter
+Focus on specific alert categories:
+- **Vendedor:** Salesperson performance alerts
+- **Cliente:** Customer relationship alerts  
+- **Producto:** Product inventory/sales alerts
+- **Cartera:** Portfolio health alerts
+
+### Hide Reviewed Toggle
+Optionally hide alerts you've already reviewed:
+- Keeps list focused on new items
+- Reviewed status persists during your session
+- Resets on page refresh
+
+<Note>
+  Filter combinations are powerful — e.g., "Show only Critical Customer alerts" to focus your customer rescue efforts.
+</Note>
+
+## Alert Details
+
+Each alert card displays:
+
+### Alert Header
+- **Alert ID:** Unique identifier (e.g., ALT001, ALT002)
+- **Alert Name:** Descriptive title (e.g., "Vendedor bajo objetivo")
+- **Severity Badge:** Visual classification with color coding
+
+### Entity Information  
+- **Entity Name:** Specific salesperson, customer, or product affected
+- **Entity Type:** Category (Vendedor / Cliente / Producto)
+- **Detailed Description:** Specific metrics triggering the alert
+
+Example: "Cliente XYZ (categoria A) — No registra compras en los últimos 35 días, cuando su frecuencia habitual es 15 días"
+
+### Suggested Action
+A specific recommended next step to address the alert:
+
+- "Agendar visita comercial esta semana"
+- "Revisar causas de la caída con el vendedor asignado"  
+- "Aumentar stock para evitar quiebre"
+- "Considerar promoción para impulsar rotación"
+
+### Review Status
+Indicates if the alert has been marked as reviewed in your session
+
+## Built-in Alert Rules
+
+The system includes 7 pre-configured alert rules:
+
+<AccordionGroup>
+  <Accordion title="ALT001 — Salesperson Below Quota" icon="user-xmark">
+    **Trigger:** Salesperson objective fulfillment &lt;70%
+    
+    **Severity:** 🔴 Critical
+    
+    **Detection Logic:**
+    ```python
+    kv_df = kpi_por_vendedor(df, obj_df, df_ant)
+    alertas = kv_df[kv_df['cumplimiento_pct'] < 0.70]
+    ```
+    
+    **Suggested Action:** "Agendar sesión de coaching para identificar obstáculos y definir plan de acción"
+  </Accordion>
+  
+  <Accordion title="ALT002 — Customer Inactivity Risk" icon="user-clock">
+    **Trigger:** Customer hasn't purchased in 30+ days
+    
+    **Severity:** 🟠 High
+    
+    **Detection Logic:**
+    ```python
+    kcli = kpi_clientes(df, cli_df, df_ant, fecha_hasta)
+    alertas = kcli[kcli['dias_desde_ultima_compra'] > 30]
+    ```
+    
+    **Suggested Action:** "Contactar al cliente para entender causas de inactividad y ofrecer incentivos"
+  </Accordion>
+  
+  <Accordion title="ALT003 — Product Sales Decline" icon="box-open">
+    **Trigger:** Product sales down >30% month-over-month
+    
+    **Severity:** 🟠 High
+    
+    **Detection Logic:**
+    ```python
+    kp = kpi_productos(df, df_ant)
+    alertas = kp[kp['vs_periodo_anterior'] < -0.30]
+    ```
+    
+    **Suggested Action:** "Investigar causas (precio, competencia, calidad) y ajustar estrategia comercial"
+  </Accordion>
+  
+  <Accordion title="ALT004 — Portfolio Concentration Risk" icon="chart-pie">
+    **Trigger:** Gini index >0.60 indicating excessive customer concentration
+    
+    **Severity:** 🟡 Medium
+    
+    **Detection Logic:**
+    ```python
+    conc = get_concentracion_pareto(kcli, 'importe_total')
+    if conc['indice_gini'] > 0.60:
+        # Generate alert
+    ```
+    
+    **Suggested Action:** "Diversificar cartera para reducir dependencia de pocos clientes clave"
+  </Accordion>
+  
+  <Accordion title="ALT005 — Margin Below Threshold" icon="percent">
+    **Trigger:** Gross margin percentage below minimum acceptable level
+    
+    **Severity:** 🔴 Critical
+    
+    **Detection Logic:**
+    ```python
+    km = kpi_margen(df, df_ant)
+    if km['margen_pct'] < MARGEN_MINIMO:  # e.g., 15%
+        # Generate alert
+    ```
+    
+    **Suggested Action:** "Revisar estructura de costos y pricing; considerar ajustes de precios"
+  </Accordion>
+  
+  <Accordion title="ALT006 — Low Portfolio Coverage" icon="users-slash">
+    **Trigger:** Active customer coverage &lt;60% of total portfolio
+    
+    **Severity:** 🟠 High
+    
+    **Detection Logic:**
+    ```python
+    kc = kpi_cobertura_clientes(df, cli_df, df_ant)
+    if kc['cobertura_pct'] < 0.60:
+        # Generate alert
+    ```
+    
+    **Suggested Action:** "Incrementar frecuencia de visitas para reactivar clientes inactivos"
+  </Accordion>
+  
+  <Accordion title="ALT007 — Upsell Opportunity" icon="arrow-trend-up">
+    **Trigger:** Customer with high frequency (>8 orders) but low average ticket
+    
+    **Severity:** 🟢 Opportunity
+    
+    **Detection Logic:**
+    ```python
+    kcli = kpi_clientes(df, cli_df, df_ant)
+    opor = kcli[
+        (kcli['frecuencia_compra'] > 8) & 
+        (kcli['ticket_promedio'] < TICKET_PROMEDIO_GENERAL * 0.7)
+    ]
+    ```
+    
+    **Suggested Action:** "Presentar productos de mayor valor; ofrecer descuentos por volumen"
+  </Accordion>
+</AccordionGroup>
+
+## How Alerts Are Generated
+
+The alert engine runs automatically when you load the page:
+
+<Steps>
+  <Step title="Load Sales Data">
+    System loads filtered transaction data based on sidebar selections
+  </Step>
+  
+  <Step title="Calculate KPIs">
+    Runs all KPI engines:
+    - `kpi_por_vendedor()` for salesperson metrics
+    - `kpi_clientes()` for customer analytics
+    - `kpi_productos()` for product performance
+    - `kpi_cobertura_clientes()` for portfolio coverage
+    - `kpi_margen()` for profitability
+  </Step>
+  
+  <Step title="Evaluate Alert Rules">
+    Each alert rule (ALT001-ALT007) checks if trigger conditions are met
+  </Step>
+  
+  <Step title="Rank by Severity">
+    Alerts are sorted: Critical → High → Medium → Low → Opportunity
+  </Step>
+  
+  <Step title="Display in UI">
+    Alerts shown with full context, entity details, and suggested actions
+  </Step>
+</Steps>
+
+**Core function:** `get_alertas_activas(df, df_ant, cli_df, prod_df, obj_df, fecha_hasta)` in `src/alerts_engine.py`
+
+Returns a DataFrame with columns:
+- `id_alerta`: Alert rule ID
+- `nombre`: Alert display name
+- `severidad`: critical / alta / media / baja / info
+- `entidad_tipo`: Vendedor / Cliente / Producto / Cartera
+- `entidad_id`: ID of affected entity
+- `entidad_nombre`: Display name of entity
+- `descripcion_detalle`: Specific metrics causing alert
+- `accion_sugerida`: Recommended next step
+
+## Managing Alerts
+
+### Mark as Reviewed
+
+Click the **"✅ Marcar revisada"** button to:
+- Flag the alert as reviewed in your session
+- Remove it from the active list (if "Hide Reviewed" is enabled)
+- Track that you've acknowledged and taken action
+
+<Note>
+  Reviewed status is session-based only. It resets when you refresh the page or start a new session. For production use, consider integrating with a task management system for permanent tracking.
+</Note>
+
+### Clear Review History
+
+Click **"🔄 Limpiar historial de revisadas"** to:
+- Reset all reviewed flags
+- Show all alerts again
+- Useful for weekly review meetings
+
+## Using Alerts for Team Management
+
+### Daily Stand-up
+1. **Filter to Critical** — Review red alerts only
+2. **Assign owners** — Delegate each alert to responsible person
+3. **Set deadlines** — Critical = today, High = this week
+4. **Mark reviewed** — Track what's been addressed
+
+### Weekly Business Review
+1. **Review all severities** — Complete picture of business health
+2. **Identify patterns** — Are same issues recurring?
+3. **Measure progress** — Are alert counts decreasing over time?
+4. **Adjust strategies** — Change approaches if alerts persist
+
+### Monthly Planning
+1. **Export alerts to CSV** — Analyze trends over time
+2. **Set preventive goals** — E.g., "Reduce customer inactivity alerts by 50%"
+3. **Measure team response** — How quickly are alerts being addressed?
+
+## Alert Metrics to Track
+
+Monitor these meta-metrics about your alerts:
+
+<CardGroup cols={2}>
+  <Card title="Alert Volume Trend" icon="chart-line">
+    Are total alerts increasing or decreasing month-over-month? Decreasing = improving business health.
+  </Card>
+  
+  <Card title="Critical Alert Ratio" icon="gauge-high">
+    % of alerts that are critical. Should be less than 20% in a healthy business.
+  </Card>
+  
+  <Card title="Repeat Alerts" icon="arrows-rotate">
+    Same entities appearing repeatedly? Indicates systemic issues needing root cause fixes.
+  </Card>
+  
+  <Card title="Opportunity Conversion" icon="trophy">
+    What % of opportunity alerts led to actual growth actions? Measures follow-through.
+  </Card>
+</CardGroup>
+
+## Customizing Alert Rules
+
+While the system includes 7 standard rules, you can customize:
+
+### Adjust Thresholds
+
+Edit threshold values in alert engine to match your business:
+
+```python
+# Example: Tighten quota performance threshold
+ALT001_THRESHOLD = 0.75  # Alert if less than 75% instead of 70%
+
+# Example: Extend customer inactivity window  
+ALT002_DIAS_INACTIVIDAD = 45  # Alert after 45 days instead of 30
+```
+
+### Add Custom Rules
+
+Create new alert rules for business-specific needs:
+
+```python
+def check_nueva_alerta(df, threshold):
+    """Nueva regla de negocio personalizada"""
+    # Your detection logic here
+    return alertas_df
+```
+
+<Tip>
+  Start with the default thresholds and adjust based on your business context. A manufacturing distributor may need different thresholds than a perishable goods distributor.
+</Tip>
+
+## Integration with Other Views
+
+Alerts are also surfaced in context:
+
+- **Executive Dashboard:** Shows top 4 critical alerts
+- **Management View:** Salespeople with ALT001 are highlighted
+- **Customer Analysis:** At-risk customers from ALT002 appear in dedicated section
+- **Product Analytics:** Declining products from ALT003 shown in warnings
+
+**Benefit:** You see alerts both in dedicated center AND in relevant operational views.
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Executive Dashboard" icon="chart-line" href="/features/executive-dashboard">
+    Return to business overview with alert summary
+  </Card>
+  
+  <Card title="Management View" icon="building" href="/features/management-view">
+    Review salespeople flagged in alerts
+  </Card>
+  
+  <Card title="Customer Analysis" icon="users" href="/features/customer-analysis">
+    Address customer inactivity and concentration alerts
+  </Card>
+</CardGroup>

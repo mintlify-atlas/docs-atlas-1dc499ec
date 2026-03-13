@@ -1,0 +1,753 @@
+---
+title: 'Using Alerts Guide'
+description: 'Learn how alerts work, what triggers them, and how to act on them effectively'
+icon: 'bell'
+---
+
+## Overview
+
+The Alerts Engine automatically evaluates your sales data against predefined business rules and flags issues requiring attention. The system generates alerts for underperforming sellers, at-risk clients, stagnant products, and growth opportunities.
+
+<Tip>
+Alerts are calculated in real-time based on your current filters. Change your date range or filters to see how alert conditions evolve.
+</Tip>
+
+## Alert Severity Levels
+
+Alerts are classified into four severity levels:
+
+| Severity | Icon | Color | Meaning | Response Time |
+|----------|------|-------|---------|---------------|
+| **Alta** (Critical) | 🔴 | Red | Immediate threat to business | Within 24 hours |
+| **Media** (Medium) | 🟡 | Yellow | Developing issue requiring attention | Within 3-5 days |
+| **Baja** (Low) | 🔵 | Blue | Minor issue to address | Within 1-2 weeks |
+| **Info** (Opportunity) | 🟢 | Green | Positive trend or opportunity | As time permits |
+
+**Reference:** Alert severity definitions in `src/alerts_engine.py:14-71`
+
+## Available Alert Rules
+
+### ALT001: Vendedor bajo rendimiento crítico
+
+<Warning>
+**Severity:** Critical (🔴 alta)
+</Warning>
+
+**Trigger Condition:**
+Seller with cumplimiento < 65% in the last 30 days
+
+**Code Reference:** `src/alerts_engine.py:102-124`
+
+```python
+# Condition check
+if cumplimiento < 0.65:
+    # Alert triggered
+```
+
+**What It Means:**
+A seller is achieving less than 65% of their monthly target, indicating severe underperformance.
+
+**Suggested Action:**
+"Revisar cartera y objetivos con supervisor" (Review portfolio and objectives with supervisor)
+
+<Accordion title="How to Respond to ALT001">
+  <Steps>
+    <Step title="Immediate Review Meeting">
+      Schedule a one-on-one within 24 hours:
+      - Review seller's client portfolio
+      - Check visit frequency and activity logs
+      - Identify if this is a new pattern or recurring issue
+      - Assess if targets are realistic given territory
+    </Step>
+    
+    <Step title="Investigate Root Causes">
+      **Possible causes:**
+      - Personal/health issues affecting performance
+      - Territory changes or client losses
+      - Inadequate training or product knowledge
+      - Competitive pressure in territory
+      - Unrealistic objectives
+      
+      **Data to check:**
+      - Filter by this seller: Review their client list
+      - Check `clientes_perdidos` and `dias_desde_ultima_compra`
+      - Compare their margin % with team average
+      - Review transaction count vs. team average
+    </Step>
+    
+    <Step title="Create Action Plan">
+      Develop specific, measurable actions:
+      - Daily check-ins for 2 weeks
+      - Joint client visits with supervisor
+      - Focus on recovering top 5 inactive clients
+      - Specific product training if needed
+      - Temporary target adjustment if justified
+    </Step>
+    
+    <Step title="Mark Alert as Reviewed">
+      In the dashboard:
+      - Click "✅ Marcar revisada" button
+      - Document actions taken in your CRM/notes
+      - Set follow-up review date (recommend 1 week)
+    </Step>
+  </Steps>
+</Accordion>
+
+### ALT002: Cliente sin compras (riesgo de pérdida)
+
+<Note>
+**Severity:** Medium (🟡 media)
+</Note>
+
+**Trigger Condition:**
+Active client with no purchases in the last 45 days
+
+**Code Reference:** `src/alerts_engine.py:126-145`
+
+```python
+# Condition check
+if uc is None or uc < (today - 45 days):
+    # Alert triggered
+```
+
+**What It Means:**
+A client marked as active in your system hasn't ordered in over 6 weeks, suggesting they may be at risk of churning to a competitor.
+
+**Suggested Action:**
+"Contacto de recuperación urgente" (Urgent recovery contact)
+
+<Accordion title="How to Respond to ALT002">
+  **Priority actions:**
+  
+  1. **Check client's Pareto category:**
+     - Navigate to Clientes page
+     - Filter to find the specific client
+     - Check `categoria_pareto` field
+     
+  2. **Response based on category:**
+     
+     **Category A clients:**
+     - Immediate phone call from manager (not just seller)
+     - In-person visit within 48 hours
+     - Investigate: Have they switched suppliers?
+     - Offer incentive to place order (if policy allows)
+     
+     **Category B clients:**
+     - Seller phone call within 24 hours
+     - Understand reason for inactivity
+     - Schedule visit if concern identified
+     - Send promotional offer
+     
+     **Category C clients:**
+     - Automated email or lower-priority outreach
+     - May not justify intensive recovery effort
+     - Consider removing from active list if no response
+  
+  3. **Document outcome:**
+     - What did you learn from the contact?
+     - Is the client recoverable?
+     - Update client status if they've closed/moved
+</Accordion>
+
+### ALT003: Caída de venta en cliente relevante
+
+<Warning>
+**Severity:** Critical (🔴 alta)
+</Warning>
+
+**Trigger Condition:**
+Category A client with sales decline > 25% vs. previous period
+
+**Code Reference:** `src/alerts_engine.py:147-175`
+
+```python
+# Condition check
+if client in category_A and delta < -0.25:
+    # Alert triggered
+```
+
+**What It Means:**
+One of your most valuable clients (Pareto A) has significantly reduced their purchasing. This is a critical early warning sign.
+
+**Suggested Action:**
+"Visita de cuenta clave" (Key account visit)
+
+<Accordion title="How to Respond to ALT003">
+  **Immediate actions (same day):**
+  
+  <Steps>
+    <Step title="Gather Intelligence">
+      Before contacting the client:
+      - Review their complete purchase history
+      - Check if decline is across all products or specific categories
+      - Review margin trends (are they negotiating harder?)
+      - Check if payment issues exist
+      - Ask seller if they're aware of any changes
+    </Step>
+    
+    <Step title="Executive-Level Contact">
+      This requires senior attention:
+      - Manager or director makes initial contact
+      - Schedule formal account review meeting
+      - Prepare value proposition review
+      - Be ready to discuss terms, pricing, service
+    </Step>
+    
+    <Step title="Conduct Account Review">
+      In the meeting:
+      - Understand their business changes
+      - Ask directly about competition
+      - Review their satisfaction with:
+        - Product quality
+        - Pricing competitiveness
+        - Delivery reliability
+        - Seller service level
+      - Identify opportunities to regain share
+    </Step>
+    
+    <Step title="Develop Recovery Plan">
+      Based on findings:
+      - Address specific concerns raised
+      - Consider temporary incentives if appropriate
+      - Increase visit frequency
+      - Assign additional support resources
+      - Set specific recovery targets and timeline
+    </Step>
+  </Steps>
+  
+  <Warning>
+  **Prevention is better than cure:** Regular business reviews with Pareto A clients prevent surprises. Schedule quarterly reviews with your top 20% clients.
+  </Warning>
+</Accordion>
+
+### ALT004: Producto sin movimiento
+
+<Note>
+**Severity:** Low (🔵 baja)
+</Note>
+
+**Trigger Condition:**
+Active product with no sales in 60 days
+
+**Code Reference:** `src/alerts_engine.py:177-197`
+
+```python
+# Condition check  
+if product is active and last_sale > 60 days ago:
+    # Alert triggered
+```
+
+**What It Means:**
+A product in your active catalog hasn't sold in 2 months, suggesting it may be obsolete or poorly positioned.
+
+**Suggested Action:**
+"Revisar disponibilidad y push comercial" (Review availability and commercial push)
+
+<Accordion title="How to Respond to ALT004">
+  **Investigation questions:**
+  
+  1. **Is this a seasonal product?**
+     - Check sales history for same period last year
+     - If seasonal, this alert may be normal
+     
+  2. **Is it in stock?**
+     - Verify physical availability
+     - Check if listed in current price list
+     - Confirm sellers know about it
+     
+  3. **What's the Pareto category?**
+     - Check Productos page
+     - If Category C: Consider discontinuation
+     - If Category A or B: This is serious
+  
+  **Actions based on findings:**
+  
+  <AccordionGroup>
+    <Accordion title="Category A Product with No Sales">
+      **This is a critical issue:**
+      - Immediate investigation required
+      - Check for system errors (maybe sales not recorded?)
+      - Review competitive situation
+      - Launch promotional campaign
+      - Train/remind sellers about product
+      - Consider pricing adjustment
+    </Accordion>
+    
+    <Accordion title="Category B Product">
+      **Moderate concern:**
+      - Include in next sales meeting
+      - Feature in seller communications
+      - Consider bundling with A products
+      - Review if competing with better alternative
+    </Accordion>
+    
+    <Accordion title="Category C Product">
+      **Low priority:**
+      - Evaluate cost of carrying inventory
+      - Consider discontinuation
+      - If strategic reason to keep, accept low sales
+      - Don't invest resources in promoting
+    </Accordion>
+  </AccordionGroup>
+</Accordion>
+
+### ALT005: Vendedor sin actividad reciente
+
+<Note>
+**Severity:** Medium (🟡 media)
+</Note>
+
+**Trigger Condition:**
+Seller with no transactions in the last 7 business days
+
+**Code Reference:** `src/alerts_engine.py:199-217`
+
+```python
+# Condition check
+if last_activity < today - 7 business days:
+    # Alert triggered
+```
+
+**What It Means:**
+A seller hasn't recorded any sales transactions in over a week of working days.
+
+**Suggested Action:**
+"Verificar actividad de campo" (Verify field activity)
+
+<Accordion title="How to Respond to ALT005">
+  **Possible explanations:**
+  
+  - **Legitimate:** Seller on vacation, sick leave, training
+  - **Concerning:** Seller working but not closing sales
+  - **Critical:** Seller not visiting clients
+  
+  **Actions to take:**
+  
+  1. **Immediate check:**
+     - Is the seller scheduled to work?
+     - Any approved leave?
+     - Check if they're submitting visit reports
+     
+  2. **If seller is working:**
+     - Review visit frequency
+     - Are they seeing clients but not closing?
+     - Pipeline/funnel issue or skill issue?
+     - Need help with specific clients?
+     
+  3. **If activity is low:**
+     - Daily check-ins for 1 week
+     - Joint visits with manager
+     - Review territory routing efficiency
+     - Address any personal/motivation issues
+  
+  <Tip>
+  Use this alert as an early warning system. Seven days without sales may indicate a problem that will show up in ALT001 next month if not addressed.
+  </Tip>
+</Accordion>
+
+### ALT006: Oportunidad: cliente B en crecimiento
+
+<Note>
+**Severity:** Opportunity (🟢 info)
+</Note>
+
+**Trigger Condition:**
+Category B client with growth > 30% vs. previous period
+
+**Code Reference:** `src/alerts_engine.py:219-247`
+
+```python
+# Condition check
+if client in category_B and delta > 0.30:
+    # Alert triggered
+```
+
+**What It Means:**
+A mid-tier client is showing strong growth and may be ready to become a Category A client with proper attention.
+
+**Suggested Action:**
+"Potencial para upgrade a categoría A — aumentar frecuencia de visita" (Potential to upgrade to category A — increase visit frequency)
+
+<Accordion title="How to Capitalize on ALT006">
+  **This is a positive alert - seize the opportunity:**
+  
+  <Steps>
+    <Step title="Understand the Growth">
+      Research why they're growing:
+      - Their business is expanding?
+      - They reduced purchases from competitors?
+      - Specific product driving growth?
+      - Seasonal spike or sustained trend?
+      
+      **Data to check:**
+      - Filter to this client on Clientes page
+      - Review their product mix
+      - Check if frequency or ticket size increased
+    </Step>
+    
+    <Step title="Increase Engagement">
+      Strike while momentum is positive:
+      - Increase visit frequency (weekly if monthly)
+      - Involve manager in relationship
+      - Introduce expanded product lines
+      - Discuss volume-based incentives
+      - Ensure excellent service (priority treatment)
+    </Step>
+    
+    <Step title="Cross-Sell and Upsell">
+      Leverage the positive relationship:
+      - Review what they're NOT buying from you
+      - Introduce complementary products
+      - Offer product training/education
+      - Share industry insights and trends
+    </Step>
+    
+    <Step title="Lock in the Growth">
+      Make switching costly:
+      - Discuss longer-term agreements
+      - Integrate systems (if applicable)
+      - Build multiple relationships in their organization
+      - Deliver exceptional value
+    </Step>
+  </Steps>
+  
+  <Tip>
+  **Proactive portfolio management:** Category B clients growing to A status is healthier than replacing lost A clients. Nurture your B clients actively.
+  </Tip>
+</Accordion>
+
+### ALT007: Equipo cerca del objetivo mensual
+
+<Note>
+**Severity:** Opportunity (🟢 info)
+</Note>
+
+**Trigger Condition:**
+Team cumplimiento > 85% with more than 5 business days remaining in the month
+
+**Code Reference:** `src/alerts_engine.py:249-270`
+
+```python
+# Condition check
+if cumplimiento_general > 0.85 and dias_habiles_restantes > 5:
+    # Alert triggered
+```
+
+**What It Means:**
+Your team is on track to meet (and potentially exceed) the monthly objective. A final push can ensure success and potentially achieve outstanding results.
+
+**Suggested Action:**
+"Push final para cerrar mes en verde" (Final push to close month in green)
+
+<Accordion title="How to Respond to ALT007">
+  **This is your chance to turn good into great:**
+  
+  **Communication strategy:**
+  
+  1. **Celebrate current success:**
+     - Acknowledge the team is performing well
+     - Recognize top performers publicly
+     - Create positive momentum
+     
+  2. **Set stretch goals:**
+     - "We're at 87%, let's hit 100%"
+     - "Only $X more to achieve target"
+     - Make it feel achievable and exciting
+     
+  3. **Identify quick wins:**
+     - Review clients close to ordering
+     - Follow up on pending quotes
+     - Contact A-clients due for reorder
+     - Push any delayed orders to close this month
+     
+  4. **Incentivize if possible:**
+     - Bonus for exceeding 100%?
+     - Recognition/prizes for top performers?
+     - Team celebration if target met?
+  
+  **Tactical focus for final days:**
+  
+  - **Don't:** Chase any sale regardless of margin
+  - **Do:** Focus on high-margin opportunities
+  - **Don't:** Pressure clients (damages relationships)
+  - **Do:** Help clients who were planning to order anyway
+  - **Don't:** Offer unsustainable discounts
+  - **Do:** Highlight genuine value and urgency
+  
+  <Warning>
+  Beware of "month-end stuffing" where sales are artificially pulled forward, stealing from next month. Focus on sustainable performance.
+  </Warning>
+</Accordion>
+
+## Using the Alerts Dashboard
+
+### Viewing Alerts
+
+Navigate to the **Alertas** page (🚨 Centro de Alertas y Oportunidades)
+
+**Summary cards show:**
+- 🔴 Critical alerts count
+- 🟡 Medium alerts count
+- 🔵 Low alerts count
+- 🟢 Opportunities count
+- Total alerts count
+
+**Reference:** `pages/5_alertas.py:59-107`
+
+### Filtering Alerts
+
+Use the filter controls to focus on specific alerts:
+
+<Steps>
+  <Step title="Filter by Severity">
+    Select one or more severity levels:
+    - Focus on 🔴 Críticas for daily management
+    - Review 🟢 Oportunidades weekly
+  </Step>
+  
+  <Step title="Filter by Entity Type">
+    Select entity types:
+    - `vendedor`: Seller-related alerts
+    - `cliente`: Client-related alerts
+    - `producto`: Product-related alerts
+    - `equipo`: Team-level alerts
+  </Step>
+  
+  <Step title="Hide Reviewed Alerts">
+    Check "Ocultar revisadas" to hide alerts you've already addressed in this session.
+    
+    <Note>
+    Reviewed status is stored in session state (`st.session_state["alertas_revisadas"]`) and persists during your current session only.
+    </Note>
+  </Step>
+</Steps>
+
+### Alert Information Display
+
+Each alert card shows:
+
+- **Alert ID and severity badge:** [ALT001] · ALTA
+- **Alert name:** Descriptive title
+- **Entity information:** Specific seller/client/product affected
+- **Detail:** Current values and context
+- **Suggested action:** Recommended response
+- **Review status:** Whether you've marked it as reviewed
+
+**Reference:** `pages/5_alertas.py:159-203`
+
+### Managing Alert Actions
+
+<Steps>
+  <Step title="Review Alert Details">
+    Read the alert information:
+    - Understand what triggered it
+    - Note the specific entity (seller name, client name, etc.)
+    - Review the current vs. reference values
+  </Step>
+  
+  <Step title="Investigate if Needed">
+    Use filters to drill down:
+    - Apply filters to isolate the entity
+    - Navigate to relevant page (Vendedores, Clientes, Productos)
+    - Review detailed KPIs for context
+  </Step>
+  
+  <Step title="Take Action">
+    Follow the suggested action:
+    - Schedule meetings
+    - Make phone calls
+    - Send communications
+    - Update priorities
+    - Document actions in your CRM/system
+  </Step>
+  
+  <Step title="Mark as Reviewed">
+    Click **"✅ Marcar revisada"**:
+    - Removes alert from default view
+    - Helps you track which alerts you've addressed
+    - Alert will reappear if condition persists in future sessions
+  </Step>
+</Steps>
+
+## Alert Best Practices
+
+<AccordionGroup>
+  <Accordion title="Daily Alert Review Routine">
+    **Every morning (5-10 minutes):**
+    
+    1. Open Alertas page
+    2. Check count of critical alerts (🔴)
+    3. Review any new critical alerts since yesterday
+    4. Assign actions for the day
+    5. Mark yesterday's alerts as reviewed if addressed
+    
+    **Make it a habit:** Alert review should be the first thing you do each morning.
+  </Accordion>
+  
+  <Accordion title="Weekly Alert Analysis">
+    **Every Monday (30 minutes):**
+    
+    1. Review all alert types (not just critical)
+    2. Look for patterns:
+       - Same seller appearing repeatedly?
+       - Multiple clients in same zone at risk?
+       - Systematic issues with certain products?
+    3. Discuss recurring alerts in team meeting
+    4. Implement systemic fixes for patterns
+    5. Track week-over-week alert count trends
+  </Accordion>
+  
+  <Accordion title="Alert Escalation Policy">
+    Define clear ownership:
+    
+    **Critical alerts (🔴):**
+    - Seller alerts: Sales manager must act within 24h
+    - Client alerts (Pareto A): Sales manager personally involved
+    - Escalate to director if no resolution in 1 week
+    
+    **Medium alerts (🟡):**
+    - Assigned to sellers with manager oversight
+    - Review in weekly one-on-ones
+    - Escalate if becomes critical
+    
+    **Low alerts (🔵):**
+    - Document but lower priority
+    - Address in regular workflow
+    - May accept some low alerts as normal
+    
+    **Opportunities (🟢):**
+    - Don't ignore these!
+    - Assign to top performers
+    - Recognize success in capitalizing on opportunities
+  </Accordion>
+  
+  <Accordion title="Document Your Actions">
+    **For each alert you address:**
+    
+    1. **Record the alert:** Alert ID, date, entity
+    2. **Document investigation:** What you found
+    3. **Note actions taken:** What you did
+    4. **Set follow-up date:** When to re-check
+    5. **Track outcome:** Did the action work?
+    
+    **Why this matters:**
+    - Build knowledge base of what works
+    - Show clients/sellers you take issues seriously
+    - Demonstrate proactive management to leadership
+    - Improve alert response over time
+  </Accordion>
+</AccordionGroup>
+
+## Alert Limitations
+
+<Warning>
+**Important considerations:**
+</Warning>
+
+### What Alerts Can't Do
+
+1. **No persistence:** Alert review status resets each session. Implement external tracking for continuity.
+
+2. **No notifications:** The system doesn't send emails or push notifications. You must check the dashboard proactively.
+
+3. **Filter dependency:** Alerts recalculate based on active filters. If you filter to one zone, you'll only see alerts for that zone.
+
+4. **No historical tracking:** Can't see that an alert existed yesterday but is resolved today. Consider periodic exports for trends.
+
+5. **Rule-based only:** Alerts follow predefined rules. They won't catch unique situations that don't match the rules.
+
+### When to Override Alert Rules
+
+**Alerts are guidelines, not absolute rules. Override when:**
+
+- **Known temporary situation:** Seller on approved leave (ALT005 false alarm)
+- **Seasonal business:** Product with expected dormant periods (ALT004 acceptable)
+- **Data lag:** Recent orders not yet in system (apparent inactivity)
+- **Strategic decision:** Accepting lower performance for strategic reasons
+
+**Always document why you're overriding an alert decision.**
+
+## Customizing Alert Thresholds
+
+<Note>
+Alert thresholds are defined in source code. Customization requires development changes.
+</Note>
+
+**Current thresholds:**
+
+| Alert | Threshold | Config Location |
+|-------|-----------|----------------|
+| ALT001 | Cumplimiento < 65% | `src/alerts_engine.py:114` |
+| ALT002 | No purchases 45 days | `src/alerts_engine.py:129` |
+| ALT003 | Category A decline > 25% | `src/alerts_engine.py:165` |
+| ALT004 | No sales 60 days | `src/alerts_engine.py:180` |
+| ALT005 | No activity 7 business days | `src/alerts_engine.py:201` |
+| ALT006 | Category B growth > 30% | `src/alerts_engine.py:237` |
+| ALT007 | Cumplimiento > 85% | `src/alerts_engine.py:258` |
+
+**To modify thresholds:**
+1. Edit values in `src/alerts_engine.py`
+2. Test thoroughly with historical data
+3. Document the change and rationale
+4. Monitor for alert volume changes
+
+## Measuring Alert Effectiveness
+
+**Track these metrics to improve your alert response:**
+
+<CardGroup cols={2}>
+  <Card title="Response Rate" icon="percent">
+    **Metric:** % of critical alerts addressed within 24h
+    
+    **Target:** > 90%
+    
+    **How to improve:**
+    - Clear ownership assignment
+    - Daily review discipline
+    - Escalation for missed alerts
+  </Card>
+  
+  <Card title="False Positive Rate" icon="triangle-exclamation">
+    **Metric:** % of alerts that were false alarms
+    
+    **Target:** < 20%
+    
+    **How to improve:**
+    - Adjust thresholds if too sensitive
+    - Add context to rules (e.g., seasonal)
+    - Better data quality
+  </Card>
+  
+  <Card title="Resolution Time" icon="clock">
+    **Metric:** Average days from alert to resolution
+    
+    **Target:** Critical < 7 days, Medium < 14 days
+    
+    **How to improve:**
+    - Faster investigation
+    - Pre-defined action playbooks
+    - More seller autonomy
+  </Card>
+  
+  <Card title="Recurrence Rate" icon="rotate">
+    **Metric:** % of same entity triggering same alert multiple times
+    
+    **Target:** < 30%
+    
+    **How to improve:**
+    - Address root causes, not symptoms
+    - Follow through on action plans
+    - Escalate chronic issues
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Interpreting KPIs" icon="chart-line" href="/guides/interpreting-kpis">
+    Understand the KPIs that drive alert calculations
+  </Card>
+  <Card title="Filtering Data" icon="filter" href="/guides/filtering-data">
+    Learn to investigate alerts by drilling down with filters
+  </Card>
+</CardGroup>

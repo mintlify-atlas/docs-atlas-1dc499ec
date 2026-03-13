@@ -1,0 +1,440 @@
+---
+title: Custom KPIs
+description: Learn how to add custom KPI calculations to your dashboard
+---
+
+The KPI engine in `src/kpi_engine.py` is designed to be extensible. You can add new KPI calculation functions following established patterns.
+
+## Understanding the KPI Engine
+
+All KPI functions follow these principles:
+
+1. **Input**: Pre-filtered pandas DataFrame(s)
+2. **Output**: Dictionary with calculated metrics OR DataFrame with one row per entity
+3. **Consistency**: Use the same column names as the data model
+4. **Nullability**: Handle missing data gracefully
+
+## KPI Function Patterns
+
+There are two main patterns for KPI functions:
+
+### Pattern 1: Aggregated Metrics (Returns Dict)
+
+For dashboard-level KPIs that return a single set of metrics:
+
+```python src/kpi_engine.py
+def kpi_ventas_periodo(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+    objetivos_df: pd.DataFrame | None = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+) -> dict:
+    """
+    KPIs agregados de ventas para el período.
+
+    Returns dict con:
+        importe_total, importe_vs_anterior, objetivo_total,
+        cumplimiento_pct, transacciones_count, ticket_promedio
+    """
+    importe_total = float(df["importe_neto"].sum()) if not df.empty else 0.0
+    n_transacciones = len(df)
+    clientes_unicos = df["id_cliente"].nunique() if not df.empty else 0
+    ticket_prom = (importe_total / clientes_unicos) if clientes_unicos > 0 else 0.0
+
+    # Objetivo del período
+    objetivo_total = 0.0
+    if objetivos_df is not None and not objetivos_df.empty and fecha_desde and fecha_hasta:
+        mask = (
+            (objetivos_df["periodo"] >= pd.Timestamp(fecha_desde)) &
+            (objetivos_df["periodo"] <= pd.Timestamp(fecha_hasta))
+        )
+        objetivo_total = float(objetivos_df[mask]["objetivo"].sum())
+
+    cumplimiento = importe_total / objetivo_total if objetivo_total > 0 else None
+
+    # Delta vs anterior
+    importe_vs_ant = None
+    if df_anterior is not None and not df_anterior.empty:
+        imp_ant = float(df_anterior["importe_neto"].sum())
+        if imp_ant > 0:
+            importe_vs_ant = (importe_total - imp_ant) / imp_ant
+
+    return {
+        "importe_total":       importe_total,
+        "importe_vs_anterior": importe_vs_ant,
+        "objetivo_total":      objetivo_total,
+        "cumplimiento_pct":    cumplimiento,
+        "transacciones_count": n_transacciones,
+        "ticket_promedio":     ticket_prom,
+        "clientes_unicos":     clientes_unicos,
+    }
+```
+
+### Pattern 2: Per-Entity Metrics (Returns DataFrame)
+
+For KPIs calculated per vendedor, cliente, or producto:
+
+```python src/kpi_engine.py
+def kpi_por_vendedor(
+    df: pd.DataFrame,
+    objetivos_df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+) -> pd.DataFrame:
+    """
+    DataFrame con una fila por vendedor y todos los KPIs.
+    """
+    if df.empty:
+        return pd.DataFrame()
+
+    # Ventas actuales por vendedor
+    grp = df.groupby("id_vendedor").agg(
+        importe_total    = ("importe_neto", "sum"),
+        transacciones    = ("id_venta",     "count"),
+        clientes_únicos  = ("id_cliente",   "nunique"),
+    ).reset_index()
+
+    # ... more calculations
+
+    return grp.reset_index(drop=True)
+```
+
+## Adding a New KPI Function
+
+Let's add a custom KPI to calculate **average order value by zone**.
+
+<Steps>
+  <Step title="Open kpi_engine.py">
+    Navigate to `src/kpi_engine.py`
+  </Step>
+  
+  <Step title="Add the new function">
+    Add your function following the pattern. Place it in the appropriate section (e.g., after `kpi_ventas_periodo` for general KPIs):
+    
+    ```python src/kpi_engine.py
+    def kpi_ventas_por_zona(
+        df: pd.DataFrame,
+        df_anterior: pd.DataFrame | None = None,
+    ) -> pd.DataFrame:
+        """
+        Calcula KPIs de ventas agrupados por zona.
+        
+        Returns DataFrame con columnas:
+            zona, importe_total, n_clientes, ticket_promedio, vs_anterior
+        """
+        if df.empty:
+            return pd.DataFrame()
+        
+        # Agrupar por zona
+        grp = df.groupby("zona").agg(
+            importe_total = ("importe_neto", "sum"),
+            n_clientes    = ("id_cliente", "nunique"),
+            n_ventas      = ("id_venta", "count"),
+        ).reset_index()
+        
+        # Calcular ticket promedio
+        grp["ticket_promedio"] = grp["importe_total"] / grp["n_clientes"]
+        
+        # Comparación con período anterior
+        if df_anterior is not None and not df_anterior.empty:
+            ant = df_anterior.groupby("zona")["importe_neto"].sum().reset_index()
+            ant = ant.rename(columns={"importe_neto": "importe_anterior"})
+            grp = grp.merge(ant, on="zona", how="left")
+            grp["importe_anterior"] = grp["importe_anterior"].fillna(0)
+            grp["vs_anterior"] = grp.apply(
+                lambda r: (r["importe_total"] - r["importe_anterior"]) / r["importe_anterior"]
+                if r["importe_anterior"] > 0 else None,
+                axis=1
+            )
+        else:
+            grp["vs_anterior"] = None
+        
+        return grp.sort_values("importe_total", ascending=False).reset_index(drop=True)
+    ```
+  </Step>
+  
+  <Step title="Use the KPI in your view">
+    Call the function from your Streamlit page:
+    
+    ```python pages/zona_analysis.py
+    from src.kpi_engine import kpi_ventas_por_zona
+    from src.data_loader import load_ventas
+    
+    # Load data
+    df_ventas = load_ventas(fecha_desde, fecha_hasta)
+    df_anterior = load_ventas(fecha_desde_ant, fecha_hasta_ant)
+    
+    # Calculate KPIs
+    kpi_zonas = kpi_ventas_por_zona(df_ventas, df_anterior)
+    
+    # Display results
+    st.dataframe(kpi_zonas)
+    ```
+  </Step>
+  
+  <Step title="Add visualizations">
+    Use the chart components to visualize your KPI:
+    
+    ```python
+    from components.charts import chart_barras_vendedores
+    import plotly.graph_objects as go
+    
+    # Create custom chart
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x = kpi_zonas["zona"],
+        y = kpi_zonas["importe_total"],
+        marker_color = COLORS["primary_light"],
+    ))
+    
+    st.plotly_chart(fig, use_container_width=True)
+    ```
+  </Step>
+</Steps>
+
+## Example: Product Category KPI
+
+Here's a complete example adding a KPI for product categories:
+
+```python src/kpi_engine.py
+def kpi_categorias_productos(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """
+    KPIs por categoría de producto con análisis de margen y rotación.
+    
+    Returns DataFrame con:
+        categoria, importe_total, margen_pct, unidades_vendidas,
+        productos_activos, vs_anterior
+    """
+    if df.empty or "categoria" not in df.columns:
+        return pd.DataFrame()
+    
+    # Agrupar por categoría
+    grp = df.groupby("categoria").agg(
+        importe_total      = ("importe_neto", "sum"),
+        margen_total       = ("margen_neto", "sum"),
+        unidades_vendidas  = ("cantidad", "sum"),
+        productos_distintos = ("id_producto", "nunique"),
+        transacciones      = ("id_venta", "count"),
+    ).reset_index()
+    
+    # Calcular margen %
+    grp["margen_pct"] = grp.apply(
+        lambda r: r["margen_total"] / r["importe_total"] if r["importe_total"] > 0 else 0,
+        axis=1
+    )
+    
+    # Participación en ventas totales
+    total_ventas = grp["importe_total"].sum()
+    grp["participacion_pct"] = grp["importe_total"] / total_ventas
+    
+    # Rotación promedio (ventas por producto)
+    grp["venta_promedio_por_producto"] = grp["importe_total"] / grp["productos_distintos"]
+    
+    # Comparación con período anterior
+    if df_anterior is not None and not df_anterior.empty:
+        ant = df_anterior.groupby("categoria").agg(
+            importe_ant = ("importe_neto", "sum"),
+            margen_ant  = ("margen_neto", "sum"),
+        ).reset_index()
+        
+        grp = grp.merge(ant, on="categoria", how="left")
+        grp["importe_ant"] = grp["importe_ant"].fillna(0)
+        grp["margen_ant"] = grp["margen_ant"].fillna(0)
+        
+        # Delta ventas
+        grp["vs_anterior"] = grp.apply(
+            lambda r: (r["importe_total"] - r["importe_ant"]) / r["importe_ant"]
+            if r["importe_ant"] > 0 else None,
+            axis=1
+        )
+        
+        # Delta margen
+        grp["margen_ant_pct"] = grp.apply(
+            lambda r: r["margen_ant"] / r["importe_ant"] if r["importe_ant"] > 0 else 0,
+            axis=1
+        )
+        grp["delta_margen_pct"] = grp["margen_pct"] - grp["margen_ant_pct"]
+    else:
+        grp["vs_anterior"] = None
+        grp["delta_margen_pct"] = None
+    
+    return grp.sort_values("importe_total", ascending=False).reset_index(drop=True)
+```
+
+## Best Practices
+
+### 1. Always Check for Empty DataFrames
+
+```python
+if df.empty:
+    return pd.DataFrame()  # or return {}
+```
+
+### 2. Handle None Values Gracefully
+
+```python
+cumplimiento = importe_total / objetivo_total if objetivo_total > 0 else None
+```
+
+### 3. Use Descriptive Column Names
+
+```python
+# Good
+grp = df.groupby("vendedor").agg(
+    importe_total = ("importe_neto", "sum"),
+    clientes_unicos = ("id_cliente", "nunique"),
+)
+
+# Avoid
+grp = df.groupby("vendedor").agg(
+    total = ("importe_neto", "sum"),
+    cli = ("id_cliente", "nunique"),
+)
+```
+
+### 4. Document Return Values
+
+Always document what your function returns:
+
+```python
+def kpi_custom(df: pd.DataFrame) -> dict:
+    """
+    Calcula KPIs customizados.
+    
+    Returns dict con:
+        metric_1: descripción
+        metric_2: descripción
+        metric_3: descripción
+    """
+```
+
+### 5. Use Type Hints
+
+```python
+from typing import Optional
+import pandas as pd
+from datetime import date
+
+def kpi_custom(
+    df: pd.DataFrame,
+    df_anterior: Optional[pd.DataFrame] = None,
+    fecha_hasta: Optional[date] = None,
+) -> dict:
+    ...
+```
+
+### 6. Follow the Comparison Pattern
+
+For period-over-period comparisons, use this pattern:
+
+```python
+# Calculate current period metric
+importe_actual = df["importe_neto"].sum()
+
+# Calculate previous period metric
+importe_vs_ant = None
+if df_anterior is not None and not df_anterior.empty:
+    imp_ant = df_anterior["importe_neto"].sum()
+    if imp_ant > 0:
+        importe_vs_ant = (importe_actual - imp_ant) / imp_ant
+
+return {
+    "importe_actual": importe_actual,
+    "importe_vs_anterior": importe_vs_ant,  # This will be None if no comparison possible
+}
+```
+
+## Using Helper Functions
+
+Create reusable helper functions for common operations:
+
+```python src/kpi_engine.py
+def _get_objetivo_periodo(
+    objetivos_df: pd.DataFrame,
+    fecha_desde: date | None,
+    fecha_hasta: date | None,
+) -> pd.DataFrame:
+    """Suma de objetivos por vendedor en el período."""
+    if objetivos_df is None or objetivos_df.empty:
+        return pd.DataFrame(columns=["id_vendedor", "objetivo"])
+    obj = objetivos_df.copy()
+    if fecha_desde and fecha_hasta:
+        obj = obj[
+            (obj["periodo"] >= pd.Timestamp(fecha_desde)) &
+            (obj["periodo"] <= pd.Timestamp(fecha_hasta))
+        ]
+    return obj.groupby("id_vendedor")["objetivo"].sum().reset_index()
+```
+
+Then use it in your KPI functions:
+
+```python
+def kpi_custom(df: pd.DataFrame, objetivos_df: pd.DataFrame, fecha_desde, fecha_hasta):
+    # ...
+    obj_periodo = _get_objetivo_periodo(objetivos_df, fecha_desde, fecha_hasta)
+    # ...
+```
+
+## Testing Your KPI
+
+Create a simple test to verify your KPI function works:
+
+```python test_kpis.py
+import pandas as pd
+from src.kpi_engine import kpi_ventas_por_zona
+
+# Create test data
+test_data = pd.DataFrame({
+    "zona": ["Norte", "Norte", "Sur", "Sur"],
+    "importe_neto": [1000, 1500, 2000, 2500],
+    "id_cliente": ["C1", "C2", "C3", "C4"],
+    "id_venta": ["V1", "V2", "V3", "V4"],
+})
+
+# Run KPI
+result = kpi_ventas_por_zona(test_data)
+
+# Verify results
+print(result)
+assert len(result) == 2  # Should have 2 zones
+assert result[result["zona"] == "Norte"]["importe_total"].values[0] == 2500
+assert result[result["zona"] == "Sur"]["importe_total"].values[0] == 4500
+```
+
+## Advanced: KPIs with External Data
+
+To add KPIs that require external data sources:
+
+```python src/kpi_engine.py
+def kpi_con_datos_externos(
+    df: pd.DataFrame,
+    clima_df: pd.DataFrame,  # External weather data
+) -> pd.DataFrame:
+    """
+    Correlaciona ventas con datos climáticos.
+    """
+    # Merge sales with weather data
+    df_merged = df.merge(
+        clima_df,
+        left_on="fecha",
+        right_on="fecha",
+        how="left"
+    )
+    
+    # Group by weather condition
+    grp = df_merged.groupby("condicion_clima").agg(
+        importe_total = ("importe_neto", "sum"),
+        n_ventas = ("id_venta", "count"),
+    ).reset_index()
+    
+    return grp
+```
+
+<Warning>
+Make sure to handle cases where external data might be missing or misaligned with your sales data.
+</Warning>

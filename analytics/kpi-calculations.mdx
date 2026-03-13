@@ -1,0 +1,424 @@
+---
+title: KPI Calculations
+description: Comprehensive reference for all KPI calculation formulas and methods in Visor KPI Comercial
+icon: calculator
+---
+
+## Overview
+
+All KPI calculations are centralized in `src/kpi_engine.py`. Each function receives a filtered DataFrame and returns structured dictionaries or DataFrames ready for visualization.
+
+<Note>
+  All functions expect pre-filtered data. Date filtering and data validation should be performed before calling these KPI functions.
+</Note>
+
+---
+
+## Sales Period KPIs
+
+### `kpi_ventas_periodo()`
+
+Calculates aggregate sales metrics for a given period with comparison to objectives and previous periods.
+
+**Function Signature:**
+```python
+def kpi_ventas_periodo(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+    objetivos_df: pd.DataFrame | None = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+) -> dict
+```
+
+**Inputs:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `df` | DataFrame | Filtered sales transactions for the current period |
+| `df_anterior` | DataFrame | Sales transactions from the comparison period (optional) |
+| `objetivos_df` | DataFrame | Sales objectives/targets by period (optional) |
+| `fecha_desde` | date | Start date of the period (optional) |
+| `fecha_hasta` | date | End date of the period (optional) |
+
+**Output Fields:**
+
+<ParamField path="importe_total" type="float">
+  Total net sales amount for the period
+  
+  **Formula:** `sum(df["importe_neto"])`
+</ParamField>
+
+<ParamField path="importe_vs_anterior" type="float | None">
+  Percentage change vs. previous period (0.15 = +15%)
+  
+  **Formula:** `(importe_total - imp_ant) / imp_ant`
+  
+  Returns `None` if no previous period data available
+</ParamField>
+
+<ParamField path="objetivo_total" type="float">
+  Sum of all objectives for the period
+  
+  **Formula:** Sum of objectives where `periodo >= fecha_desde AND periodo <= fecha_hasta`
+</ParamField>
+
+<ParamField path="cumplimiento_pct" type="float | None">
+  Goal completion percentage (1.0 = 100%)
+  
+  **Formula:** `importe_total / objetivo_total`
+  
+  Returns `None` if no objective defined
+</ParamField>
+
+<ParamField path="transacciones_count" type="int">
+  Total number of transactions
+  
+  **Formula:** `len(df)`
+</ParamField>
+
+<ParamField path="ticket_promedio" type="float">
+  Average ticket per unique customer
+  
+  **Formula:** `importe_total / clientes_unicos`
+  
+  Returns `0` if no customers
+</ParamField>
+
+<ParamField path="clientes_unicos" type="int">
+  Number of unique customers who purchased
+  
+  **Formula:** `df["id_cliente"].nunique()`
+</ParamField>
+
+**Source:** `src/kpi_engine.py:20-66`
+
+---
+
+## Margin KPIs
+
+### `kpi_margen()`
+
+Calculates gross margin metrics with period-over-period comparison.
+
+**Function Signature:**
+```python
+def kpi_margen(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+) -> dict
+```
+
+**Output Fields:**
+
+<ParamField path="margen_bruto_total" type="float">
+  Total gross margin in currency
+  
+  **Formula:** `sum(df["margen_neto"])`
+</ParamField>
+
+<ParamField path="margen_pct_promedio" type="float">
+  Average margin percentage (0.25 = 25%)
+  
+  **Formula:** `margen_total / importe_total`
+</ParamField>
+
+<ParamField path="margen_vs_anterior" type="float | None">
+  Percentage change vs. previous period
+  
+  **Formula:** `(margen_total - margen_ant) / margen_ant`
+</ParamField>
+
+**Source:** `src/kpi_engine.py:68-93`
+
+---
+
+## Customer Coverage KPIs
+
+### `kpi_cobertura_clientes()`
+
+Measures customer portfolio health and coverage metrics.
+
+**Function Signature:**
+```python
+def kpi_cobertura_clientes(
+    df: pd.DataFrame,
+    clientes_df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+) -> dict
+```
+
+**Business Logic:**
+
+1. **Active Customers:** Customers marked as `activo == True` in master data
+2. **Purchased in Period:** Customers with at least one transaction in `df`
+3. **Coverage:** Percentage of active customers who purchased
+4. **Lost Customers:** Purchased in previous period but not in current
+5. **New Customers:** First purchase ever in the current period
+6. **Recovered Customers:** Purchased before but not in previous period, now back
+
+**Output Fields:**
+
+<ParamField path="clientes_activos_periodo" type="int">
+  Number of active customers who purchased in this period
+  
+  **Formula:** `len(compraron & clientes_activos_total)`
+</ParamField>
+
+<ParamField path="clientes_total" type="int">
+  Total number of active customers in portfolio
+</ParamField>
+
+<ParamField path="cobertura_pct" type="float">
+  Coverage percentage (0.75 = 75% of active customers bought)
+  
+  **Formula:** `n_activos_periodo / n_total`
+</ParamField>
+
+<ParamField path="clientes_perdidos" type="int">
+  Customers who bought before but not now
+  
+  **Formula:** `len(compraron_anterior - compraron)`
+</ParamField>
+
+<ParamField path="clientes_nuevos" type="int">
+  Customers making their first purchase ever
+  
+  **Formula:** `len(compraron - todos_anteriores)`
+</ParamField>
+
+<ParamField path="clientes_recuperados" type="int">
+  Previously inactive customers who returned
+</ParamField>
+
+**Source:** `src/kpi_engine.py:95-136`
+
+---
+
+## Salesperson KPIs
+
+### `kpi_por_vendedor()`
+
+Generates a comprehensive DataFrame with one row per salesperson containing all performance metrics.
+
+**Function Signature:**
+```python
+def kpi_por_vendedor(
+    df: pd.DataFrame,
+    objetivos_df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+) -> pd.DataFrame
+```
+
+**Output Columns:**
+
+| Column | Type | Formula/Description |
+|--------|------|--------------------|
+| `id_vendedor` | str | Salesperson unique ID |
+| `nombre_vendedor` | str | Salesperson name |
+| `zona_vendedor` | str | Sales territory |
+| `perfil` | str | Sales profile/role |
+| `importe_total` | float | `sum(importe_neto)` per salesperson |
+| `transacciones` | int | `count(id_venta)` per salesperson |
+| `clientes_únicos` | int | `nunique(id_cliente)` per salesperson |
+| `objetivo` | float | Sum of objectives for the period |
+| `cumplimiento_pct` | float | `importe_total / objetivo` (null if objective is 0) |
+| `ticket_promedio` | float | `importe_total / clientes_únicos` |
+| `importe_vs_mes_anterior` | float | `(importe_total - importe_anterior) / importe_anterior` |
+| `ranking_actual` | int | Current sales ranking (1 = best) |
+| `ranking_anterior` | int | Previous period ranking |
+| `delta_ranking` | int | Position change (positive = improved) |
+| `color_semaforo` | str | Hex color based on performance |
+| `label_semaforo` | str | 'success', 'warning', or 'danger' |
+
+**Performance Semaphore Logic:**
+
+```python
+def _color_semaforo(cumpl: float | None) -> str:
+    if cumpl is None:
+        return "#E84855"  # Red
+    if cumpl >= 1.00:      # ≥100%
+        return "#00C49F"  # Green
+    elif cumpl >= 0.80:    # 80-99%
+        return "#FFB347"  # Orange
+    return "#E84855"      # <80% = Red
+```
+
+<Note>
+  The DataFrame is sorted by `importe_total` in descending order, so the first row is always the top performer.
+</Note>
+
+**Source:** `src/kpi_engine.py:142-212`
+
+---
+
+## Product KPIs
+
+### `kpi_productos()`
+
+Calculates product performance metrics including Pareto classification.
+
+**Function Signature:**
+```python
+def kpi_productos(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+) -> pd.DataFrame
+```
+
+**Output Columns:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id_producto` | str | Product unique ID |
+| `descripcion` | str | Product description |
+| `categoria` | str | Product category |
+| `importe_total` | float | Total sales amount |
+| `unidades_vendidas` | float | Sum of quantity sold |
+| `n_transacciones` | int | Number of transactions |
+| `participacion_pct` | float | Percentage of total sales (0-1) |
+| `acumulado_pct` | float | Cumulative percentage (0-1) |
+| `categoria_pareto` | str | 'A', 'B', or 'C' classification |
+| `vs_periodo_anterior` | float | Percentage change vs. previous period |
+
+<Tip>
+  See [Pareto Analysis](/analytics/pareto-analysis) for detailed information on the Pareto classification logic.
+</Tip>
+
+**Source:** `src/kpi_engine.py:218-257`
+
+---
+
+## Customer KPIs
+
+### `kpi_clientes()`
+
+Comprehensive customer analysis including Pareto, recency, and risk flags.
+
+**Function Signature:**
+```python
+def kpi_clientes(
+    df: pd.DataFrame,
+    clientes_df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+    fecha_hasta: date | None = None,
+) -> pd.DataFrame
+```
+
+**Output Columns:**
+
+| Column | Type | Formula/Description |
+|--------|------|--------------------|
+| `id_cliente` | str | Customer unique ID |
+| `razon_social` | str | Customer business name |
+| `canal` | str | Sales channel |
+| `zona` | str | Geographic zone |
+| `importe_total` | float | `sum(importe_neto)` per customer |
+| `frecuencia_compra` | int | Number of purchases |
+| `ultima_compra` | date | Most recent purchase date |
+| `primera_compra` | date | First purchase date in period |
+| `ticket_promedio` | float | `importe_total / frecuencia_compra` |
+| `dias_desde_ultima_compra` | int | Days since last purchase |
+| `participacion_pct` | float | % of total sales |
+| `acumulado_pct` | float | Cumulative % (Pareto) |
+| `categoria_pareto` | str | 'A', 'B', or 'C' |
+| `vs_periodo_anterior` | float | % change vs. previous period |
+| `flag_en_riesgo` | bool | Risk flag for valuable customers |
+
+**Risk Flag Logic:**
+
+```python
+flag_en_riesgo = (
+    (categoria_pareto in ['A', 'B']) AND
+    (dias_desde_ultima_compra > 30)
+)
+```
+
+<Warning>
+  Customers flagged as `flag_en_riesgo = True` are high-value (A or B category) but haven't purchased in over 30 days. These require immediate attention.
+</Warning>
+
+**Source:** `src/kpi_engine.py:263-321`
+
+---
+
+## Monthly Evolution
+
+### `kpi_evolucion_mensual()`
+
+Time-series data for monthly sales trends with objectives.
+
+**Function Signature:**
+```python
+def kpi_evolucion_mensual(
+    df: pd.DataFrame,
+    objetivos_df: pd.DataFrame | None = None,
+    id_vendedor: str | None = None,
+    n_meses: int = 13,
+) -> pd.DataFrame
+```
+
+**Parameters:**
+
+- `id_vendedor`: If provided, filters to a specific salesperson
+- `n_meses`: Number of months to return (default: 13 for year + current month)
+
+**Output Columns:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `periodo` | Period | Month period (pandas Period) |
+| `periodo_str` | str | Period as string (e.g., "2026-03") |
+| `importe` | float | Total sales for the month |
+| `n_ventas` | int | Number of transactions |
+| `n_clientes` | int | Unique customers |
+| `objetivo` | float | Monthly objective (if available) |
+
+**Source:** `src/kpi_engine.py:327-366`
+
+---
+
+## Executive Insight
+
+### `generar_insight_ejecutivo()`
+
+Auto-generates a natural language summary paragraph for executive dashboards.
+
+**Function Signature:**
+```python
+def generar_insight_ejecutivo(
+    kpi_ventas: dict,
+    kpi_vend: pd.DataFrame,
+    alertas_df: pd.DataFrame | None = None,
+) -> str
+```
+
+**Output Example:**
+
+> El equipo lleva **$1.284.500** en ventas, ▲ +8.2% vs período anterior, alcanzando el **84.2%** del objetivo. 5 vendedores están en 🟢 verde, 3 en 🟡 naranja y 2 en 🔴 rojo. Se detectaron **12 alertas activas**: 3 críticas, 5 medias, 4 informativas.
+
+**Uses:**
+- Formatted currency from `config.fmt_moneda()`
+- Formatted percentages from `config.fmt_pct()`
+- Delta formatting from `config.fmt_delta()`
+- Alert severity counts
+
+**Source:** `src/kpi_engine.py:372-408`
+
+---
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Pareto Analysis" icon="chart-pyramid" href="/analytics/pareto-analysis">
+    80/20 classification logic for customers and products
+  </Card>
+  <Card title="Alert Rules" icon="bell" href="/analytics/alert-rules">
+    Automated business rules and thresholds
+  </Card>
+  <Card title="Performance Metrics" icon="gauge-high" href="/analytics/performance-metrics">
+    Thresholds and performance indicators
+  </Card>
+</CardGroup>

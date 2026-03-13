@@ -1,0 +1,284 @@
+---
+title: Sales Team Tracking
+description: Individual salesperson dashboards with personal KPIs, portfolio details, and ranking position
+icon: "user-tie"
+---
+
+## Overview
+
+The Sales Team Tracking view provides each salesperson with their own personalized dashboard. Salespeople can see their performance, track their quota, understand their position in the team, and analyze their customer and product portfolio.
+
+<Note>
+  This view eliminates the need for salespeople to wait for external reports — they get real-time access to their performance data with context on how they're performing vs. the team.
+</Note>
+
+## Business Value
+
+<Check>**Self-service analytics** — Salespeople access their own data instantly</Check>
+<Check>**Transparent performance** — Clear visibility into quota achievement and ranking</Check>
+<Check>**Portfolio insights** — See which customers and products drive their results</Check>
+<Check>**Gamification** — Ranking position motivates healthy competition</Check>
+
+## Salesperson Profile Card
+
+Each dashboard starts with a profile header showing:
+
+<CardGroup cols={2}>
+  <Card title="Name & Zone" icon="id-card">
+    Full name with assigned geographic territory
+  </Card>
+  <Card title="Tenure" icon="calendar-days">
+    Years of experience with the company (from `antiguedad_años`)
+  </Card>
+  <Card title="Profile Type" icon="user-tag">
+    Performance classification:
+    - 🌟 **Estrella** (Star): Consistently exceeds quota
+    - ✅ **Estable** (Stable): Meets quota reliably
+    - 📈 **Desarrollo** (Developing): Building performance
+    - ⚠️ **Problemático** (Struggling): Below expectations
+  </Card>
+  <Card title="Visual Indicator" icon="circle">
+    Color-coded badge matching profile type for quick recognition
+  </Card>
+</CardGroup>
+
+The profile type is stored in `vendedores_df` and provides context for interpreting performance.
+
+## Personal KPI Cards
+
+### Period Sales
+- Total revenue generated: `sum(importe_neto)` for this salesperson
+- Delta vs. equivalent previous period (e.g., "+12.3%")
+- Personal monthly/period objective from `objetivos_df`
+- Fulfillment percentage with traffic light indicator
+
+### Quota Fulfillment
+- Large percentage display showing `(actual / objective) * 100`
+- Target line at 100%
+- Visual gauge chart (see below)
+- Updated in real-time based on filter selections
+
+### Customers Visited
+- Count of unique `id_cliente` in the period
+- Indicates portfolio coverage and activity level
+- Calculated as `df[df['id_vendedor'] == vendedor_id]['id_cliente'].nunique()`
+
+### Average Ticket
+- Mean sale amount: `total_revenue / transaction_count`
+- Helps identify if the salesperson is maximizing order sizes
+
+<Tip>
+  A low ticket average combined with high customer count suggests opportunity to increase order size through upselling.
+</Tip>
+
+## Performance Gauge
+
+A visual gauge displays quota achievement:
+
+- **Needle position:** Actual fulfillment percentage
+- **Color zones:**
+  - 🟢 Green (90-100%+): On track or exceeding
+  - 🟡 Yellow (70-90%): Approaching quota
+  - 🔴 Red (0-70%): Below expectations
+- **Generated using** `chart_gauge_cumplimiento(valor=cumplimiento_pct, label="Mi Cumplimiento")`
+
+## Personal Evolution Chart
+
+Track the salesperson's individual sales trend over the last 6 months:
+
+- **Blue line:** Actual monthly sales
+- **Red dotted line:** Monthly personal objectives
+- **Calculated using** `kpi_evolucion_mensual(df, obj_df, vendedor_id, n_meses=6)`
+- Hover to see exact amounts per month
+
+<Note>
+  The evolution chart helps salespeople identify their own patterns — e.g., "I always have a strong Q1 but slow Q2."
+</Note>
+
+## Team Ranking Position
+
+Salespeople see where they rank among the entire team:
+
+### Position Card
+- **Current ranking:** e.g., "#5 of 12"
+- **Movement indicator:** 
+  - ⬆️ Improved vs. last period
+  - ⬇️ Declined vs. last period
+  - ➡️ Same position
+- **Position change:** e.g., "+2 positions" or "-1 position"
+
+### Full Team Ranking Table
+- Shows all salespeople ranked by sales volume
+- **Highlights current user's row** for easy identification
+- See who's ahead and behind to understand competitive position
+- Calculated from `kpi_por_vendedor(df_eq, obj_df, df_eq_ant)` where `df_eq` includes entire team
+
+<Tip>
+  The ranking is based on total sales in the selected period. Use filters to see rankings for specific time ranges or channels.
+</Tip>
+
+## My Customers
+
+A detailed table of the salesperson's customer portfolio showing:
+
+| Customer | Total Sales | Frequency | Pareto Category | Days Since Purchase |
+|----------|-------------|-----------|-----------------|---------------------|
+| Cliente A | $45,200 | 12 orders | A | 3 days |
+| Cliente B | $32,100 | 8 orders | B | 15 days |
+| Cliente C | $18,500 | 5 orders | C | 45 days ⚠️ |
+
+**Metrics Explained:**
+
+<AccordionGroup>
+  <Accordion title="Total Sales" icon="dollar-sign">
+    Sum of `importe_neto` for all transactions with this customer in the period
+  </Accordion>
+  
+  <Accordion title="Frequency" icon="repeat">
+    Number of separate purchase transactions (order count)
+  </Accordion>
+  
+  <Accordion title="Pareto Category" icon="chart-pie">
+    - **A**: Top 20% of customers driving ~80% of revenue
+    - **B**: Middle tier contributing ~15% of revenue  
+    - **C**: Long tail representing remaining ~5%
+  </Accordion>
+  
+  <Accordion title="Days Since Purchase" icon="clock">
+    Days elapsed since the customer's most recent order
+    - ⚠️ **Red flag** if >30 days (at-risk customer)
+  </Accordion>
+</AccordionGroup>
+
+**Generated using** `kpi_clientes(df, cli_df, df_ant, fecha_hasta)` filtered to this salesperson.
+
+## At-Risk Customers
+
+A dedicated section highlights customers requiring attention:
+
+<Warning>
+  Customers flagged as at-risk haven't purchased in 30+ days or show a significant sales decline vs. previous period.
+</Warning>
+
+For each at-risk customer, the system shows:
+- Customer name and contact details
+- Days since last purchase
+- Previous purchase frequency
+- Suggested action (e.g., "Schedule visit within 7 days")
+
+**Risk detection logic:**
+```python
+flag_en_riesgo = (
+    (dias_desde_ultima_compra > 30) | 
+    (vs_periodo_anterior < -0.30)
+)
+```
+
+<Tip>
+  Prioritize A and B category customers in the at-risk list — losing a high-value customer has the biggest impact on your quota.
+</Tip>
+
+## My Top Products
+
+See which products are driving the salesperson's sales:
+
+- **Product name** and category
+- **Total sales amount** for this product
+- **Units sold** (if available in data)
+- **Growth vs. previous period**
+- **Pareto classification** within the salesperson's mix
+
+**Calculated using** `kpi_productos(df, df_ant)` filtered to `df[df['id_vendedor'] == vendedor_id]`
+
+Shows top 10 products by default, expandable to see full catalog.
+
+## How to Use This View
+
+### Daily Quick Check
+1. **Check fulfillment gauge** — Am I on track for quota?
+2. **Review at-risk customers** — Who needs a follow-up call today?
+3. **Monitor ranking** — Did I move up or down this week?
+
+### Weekly Planning
+1. **Analyze evolution chart** — Is my trend positive or negative?
+2. **Review customer frequency** — Who haven't I visited recently?
+3. **Check product mix** — Am I selling the full portfolio?
+
+### Monthly Review
+1. **Compare vs. objective** — Will I hit quota this month?
+2. **Identify gaps** — Which customer segments am I weak in?
+3. **Plan next month** — What actions will improve my ranking?
+
+## Personal Insights
+
+The dashboard may include automated insights specific to the salesperson:
+
+<CardGroup cols={2}>
+  <Card title="Strength Identified" icon="star" color="#00C49F">
+    "Your frequency with A-category customers is 2x the team average — excellent relationship management!"
+  </Card>
+  <Card title="Opportunity Detected" icon="lightbulb" color="#3B82F6">
+    "3 of your B-category customers increased spend 25%+ — consider prioritizing similar profiles"
+  </Card>
+  <Card title="Risk Alert" icon="triangle-exclamation" color="#FFB347">
+    "Your top customer hasn't purchased in 18 days — schedule a visit this week"
+  </Card>
+  <Card title="Improvement Area" icon="chart-line" color="#E84855">
+    "Your average ticket is 15% below team average — explore cross-selling opportunities"
+  </Card>
+</CardGroup>
+
+## Filtering Your Data
+
+Salespeople can use sidebar filters to:
+
+- **Date Range:** Analyze specific periods (This Month, Last Quarter, etc.)
+- **Channels:** See performance by sales channel if they serve multiple
+- **Zones:** If they cover multiple territories, break down by zone
+
+<Note>
+  Filters apply to all KPIs on the page. For example, filtering to "Last Month" + "Retail Channel" shows only retail sales from last month.
+</Note>
+
+## KPI Calculation Details
+
+**Personal KPIs** are calculated using the same engine as team metrics but filtered to the specific salesperson:
+
+```python
+# Filter all data to this salesperson
+df_personal = get_filtered_data(
+    fecha_desde, fecha_hasta, 
+    [vendedor_id],  # Single salesperson
+    zonas_sel, canales_sel
+)
+
+# Calculate individual metrics
+kv = kpi_ventas_periodo(df_personal, df_ant, obj_df, fecha_desde, fecha_hasta)
+```
+
+**Ranking calculation** compares the individual against the full team:
+
+```python
+# Get all salespeople performance
+kv_all = kpi_por_vendedor(df_equipo, obj_df, df_eq_ant)
+
+# Sort by total sales descending
+kv_all['ranking_actual'] = kv_all['importe_total'].rank(ascending=False)
+
+# Find this salesperson's position
+mi_ranking = kv_all[kv_all['id_vendedor'] == vendedor_id]['ranking_actual']
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Customer Analysis" icon="users" href="/features/customer-analysis">
+    Deep dive into customer portfolio with Pareto analysis
+  </Card>
+  <Card title="Product Analytics" icon="box" href="/features/product-analytics">
+    Explore product performance and rotation
+  </Card>
+  <Card title="Management View" icon="building" href="/features/management-view">
+    See full team rankings and performance
+  </Card>
+</CardGroup>

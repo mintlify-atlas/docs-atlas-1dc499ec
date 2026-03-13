@@ -1,0 +1,202 @@
+---
+title: Introduction
+description: Transform Excel sales data into actionable business intelligence with Visor KPI Comercial
+---
+
+<div style={{
+  background: 'linear-gradient(135deg, #94cb04 0%, #7aa303 100%)',
+  padding: '48px 32px',
+  borderRadius: '8px',
+  marginBottom: '32px',
+  color: '#1a1a1a'
+}}>
+  <h1 style={{
+    fontSize: '48px',
+    fontWeight: '700',
+    marginBottom: '16px',
+    color: '#1a1a1a'
+  }}>
+    Visor KPI Comercial
+  </h1>
+  <p style={{
+    fontSize: '18px',
+    marginBottom: '24px',
+    color: '#1a1a1a',
+    opacity: 0.9
+  }}>
+    Sales intelligence dashboard that transforms Excel sales data into actionable KPIs and business insights for distribution teams.
+  </p>
+  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+    <a 
+      href="/quickstart"
+      style={{
+        background: '#1a1a1a',
+        color: '#94cb04',
+        padding: '12px 24px',
+        borderRadius: '6px',
+        textDecoration: 'none',
+        fontWeight: '600',
+        display: 'inline-block'
+      }}
+    >
+      Get Started →
+    </a>
+    <a 
+      href="https://excel-to-kpi-dashboard.streamlit.app/"
+      target="_blank"
+      style={{
+        background: 'rgba(255, 255, 255, 0.9)',
+        color: '#1a1a1a',
+        padding: '12px 24px',
+        borderRadius: '6px',
+        textDecoration: 'none',
+        fontWeight: '600',
+        display: 'inline-block'
+      }}
+    >
+      View Live Demo
+    </a>
+  </div>
+</div>
+
+## What Problem Does It Solve?
+
+Many distribution companies still manage their sales data with multiple Excel files, manual reports, and hours of work spent consolidating data that arrives late, scattered, and error-prone.
+
+The real problem isn't just the operational effort: **when data is scattered, making good business decisions becomes difficult and slow.**
+
+**Visor KPI Comercial** solves exactly that:
+
+- **Eliminates manual analysis** — converts Excel sales files into automatically processed KPIs
+- **Centralizes business intelligence** — managers and sales reps access their metrics from a single dashboard
+- **Anticipates problems** — an alert engine detects performance drops, at-risk customers, and growth opportunities before they impact results
+- **Democratizes data** — each sales rep accesses their own individual report; management gets a consolidated view of the entire team
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Executive Dashboard" icon="chart-line" href="/features/executive-dashboard">
+    High-level KPIs, sales trends, and team performance at a glance
+  </Card>
+  <Card title="Management View" icon="users-viewfinder" href="/features/management-view">
+    Team comparison, performance rankings, and trend analysis
+  </Card>
+  <Card title="Sales Team Tracking" icon="user-tie" href="/features/sales-team-tracking">
+    Individual dashboards for each sales rep with personal metrics
+  </Card>
+  <Card title="Customer Analysis" icon="building" href="/features/customer-analysis">
+    Pareto classification, portfolio concentration, and churn risk detection
+  </Card>
+  <Card title="Product Analytics" icon="boxes-stacked" href="/features/product-analytics">
+    Product performance, rotation tracking, and category insights
+  </Card>
+  <Card title="Alerts Center" icon="bell" href="/features/alerts-center">
+    Intelligent alerts with 7 business rules for proactive management
+  </Card>
+</CardGroup>
+
+## Business Intelligence Capabilities
+
+### Automated ETL Pipeline
+
+Excel ingestion without manual configuration — the system reads, validates, and transforms sales files into a reproducible pipeline with pandas and openpyxl.
+
+### KPI Engine
+
+Automated calculation of critical business metrics:
+
+- **Period sales** — Total revenue and segmentation
+- **Gross margin** — Profitability by sales rep, customer, and product
+- **Quota fulfillment** — % of target achieved vs monthly goal
+- **Portfolio coverage** — % of active customers over total assigned
+- **Period-over-period variance** — Absolute and relative delta MoM / YoY
+- **Purchase frequency** — Recurrence by customer and channel
+- **Product rotation** — Active vs inactive SKUs by period
+
+### Pareto 80/20 Analysis
+
+- Automatic classification of customers and products into **A / B / C** categories
+- Calculation of portfolio **Gini concentration index**
+- Identification of customers generating 80% of revenue
+- Detection of low-rotation SKUs with potential stockout risk
+
+### Intelligent Alert System
+
+7 pre-configured business rules that trigger real-time alerts:
+
+| ID | Alert | Severity |
+|---|---|---|
+| ALT001 | Sales rep with performance < 70% | Critical |
+| ALT002 | Customer without purchases in last 30 days | High |
+| ALT003 | Product with sales drop > 30% MoM | High |
+| ALT004 | Customer portfolio with excessive concentration (Gini > 0.6) | Medium |
+| ALT005 | Margin below minimum threshold | Critical |
+| ALT006 | Portfolio coverage < 60% | High |
+| ALT007 | Opportunity: customer with high frequency and low ticket | Opportunity |
+
+## Live Demo
+
+Experience the full interactive application:
+
+<Card 
+  title="View Live Dashboard" 
+  icon="arrow-up-right-from-square" 
+  href="https://excel-to-kpi-dashboard.streamlit.app/"
+>
+  Explore the complete Visor KPI Comercial dashboard with sample data
+</Card>
+
+## Quick Stats
+
+<CardGroup cols={3}>
+  <Card title="27 Months" icon="calendar">
+    Historical coverage (Jan 2023 – Mar 2026)
+  </Card>
+  <Card title="12 Sales Reps" icon="users">
+    Monitored profiles: star / stable / developing / problematic
+  </Card>
+  <Card title="180 Customers" icon="building">
+    Portfolio across 4 commercial channels
+  </Card>
+</CardGroup>
+
+<CardGroup cols={3}>
+  <Card title="60 Products" icon="box">
+    SKUs analyzed across 5 categories
+  </Card>
+  <Card title="~30,000 Transactions" icon="receipt">
+    Processed records
+  </Card>
+  <Card title="< 3 Seconds" icon="gauge-high">
+    Dashboard load time with full dataset
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+Built with modern Python tools for data analysis and visualization:
+
+- **Python 3.10+** — Runtime
+- **Streamlit 1.32** — Multi-page UI framework
+- **Plotly 5.19** — Interactive visualizations
+- **Pandas 2.2** — ETL pipeline and data analysis
+- **NumPy 1.26** — Numerical calculations
+- **openpyxl** — Excel reading/writing
+- **pytest 8.0** — Automated testing suite
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+    Get up and running in 5 minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Detailed installation instructions
+  </Card>
+  <Card title="User Guides" icon="book-open" href="/guides/data-import">
+    Learn how to use each feature
+  </Card>
+  <Card title="Developer Guide" icon="code" href="/dev/architecture-overview">
+    Customize and extend the platform
+  </Card>
+</CardGroup>

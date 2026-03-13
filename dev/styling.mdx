@@ -1,0 +1,590 @@
+---
+title: Styling & Theming
+description: Customize the visual appearance of your dashboard
+---
+
+Visor KPI Comercial uses a combination of CSS (in `assets/style.css`) and Python color configuration (in `config.py`) to create a professional dark-mode interface. This guide shows you how to customize the styling.
+
+## Style Architecture
+
+The styling system has three layers:
+
+1. **CSS Global Styles** (`assets/style.css`) - Controls overall layout, fonts, and Streamlit component overrides
+2. **Python Color Constants** (`config.py`) - Defines the color palette used in charts and custom components
+3. **Component Styling** (`components/*.py`) - Inline styles in custom UI components
+
+## CSS Structure
+
+The `assets/style.css` file is organized into sections:
+
+```css assets/style.css
+/* ── Reset y base ─────────────────────────────────────────── */
+* {
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* ── Ocultar elementos de Streamlit por defecto ──────────── */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+header { visibility: hidden; }
+
+/* ── Fondo principal ─────────────────────────────────────── */
+.stApp {
+    background-color: #0F1923;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+[data-testid="stSidebar"] {
+    background-color: #1A2535 !important;
+    border-right: 1px solid #2D3F55;
+}
+```
+
+### Key Sections
+
+| Section | Purpose | Line Range |
+|---------|---------|------------|
+| Reset y base | Font family and basic resets | 9-12 |
+| Ocultar elementos | Hide Streamlit default UI elements | 14-20 |
+| Fondo principal | Main background color | 22-30 |
+| Sidebar | Sidebar styling | 32-48 |
+| Scrollbar | Custom scrollbar appearance | 50-64 |
+| KPI Cards | Card component styles | 66-133 |
+| Animaciones | CSS animations | 135-143 |
+| Tablas | Table styling | 145-176 |
+| Badges | Badge components | 178-196 |
+| Alert cards | Alert styling | 198-229 |
+| Títulos | Section titles | 231-245 |
+| Responsive | Mobile adaptations | 367-390 |
+
+## Changing the Color Scheme
+
+The color palette is defined in two places that must stay synchronized.
+
+### 1. Update config.py Colors
+
+```python config.py
+COLORS = {
+    # Change these to your brand colors
+    "primary":        "#YOUR_PRIMARY_COLOR",
+    "primary_light":  "#YOUR_PRIMARY_LIGHT",
+    "accent":         "#YOUR_ACCENT_COLOR",
+    
+    "success":        "#YOUR_SUCCESS_COLOR",
+    "warning":        "#YOUR_WARNING_COLOR",
+    "danger":         "#YOUR_DANGER_COLOR",
+    
+    "bg_dark":        "#YOUR_BG_DARK",
+    "bg_card":        "#YOUR_BG_CARD",
+    "bg_card_hover":  "#YOUR_BG_CARD_HOVER",
+    "text_primary":   "#YOUR_TEXT_PRIMARY",
+    "text_secondary": "#YOUR_TEXT_SECONDARY",
+    "border":         "#YOUR_BORDER_COLOR",
+}
+```
+
+### 2. Update CSS to Match
+
+Update corresponding colors in `assets/style.css`:
+
+```css assets/style.css
+/* Update background colors */
+.stApp {
+    background-color: #YOUR_BG_DARK;  /* matches COLORS["bg_dark"] */
+}
+
+[data-testid="stSidebar"] {
+    background-color: #YOUR_BG_CARD !important;  /* matches COLORS["bg_card"] */
+}
+
+/* Update card colors */
+.kpi-card {
+    background: #YOUR_BG_CARD;  /* matches COLORS["bg_card"] */
+    border-left: 4px solid #YOUR_PRIMARY_LIGHT;  /* matches COLORS["primary_light"] */
+}
+
+.kpi-card:hover {
+    background: #YOUR_BG_CARD_HOVER;  /* matches COLORS["bg_card_hover"] */
+}
+```
+
+<Steps>
+  <Step title="Choose your color palette">
+    Use a tool like [Coolors](https://coolors.co/) or [Adobe Color](https://color.adobe.com/) to create a cohesive palette.
+  </Step>
+  
+  <Step title="Update config.py first">
+    Change all color values in the `COLORS` dictionary.
+  </Step>
+  
+  <Step title="Update CSS to match">
+    Search and replace the corresponding hex codes in `assets/style.css`.
+  </Step>
+  
+  <Step title="Test in browser">
+    Restart Streamlit and check all pages to ensure colors look correct.
+  </Step>
+</Steps>
+
+## Customizing KPI Cards
+
+KPI cards are styled using the `.kpi-card` class:
+
+```css assets/style.css
+.kpi-card {
+    background: #1A2535;
+    border-radius: 12px;        /* Rounded corners */
+    padding: 20px;              /* Internal spacing */
+    border-left: 4px solid #2E5FA3;  /* Left accent border */
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.kpi-card:hover {
+    transform: translateY(-2px);  /* Lift effect on hover */
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    background: #243044;
+}
+```
+
+### Modify Card Appearance
+
+**Make cards more rounded:**
+```css
+.kpi-card {
+    border-radius: 20px;  /* More rounded */
+}
+```
+
+**Remove hover effect:**
+```css
+.kpi-card:hover {
+    transform: none;  /* No lift */
+    background: #1A2535;  /* Same as default */
+}
+```
+
+**Thicker accent border:**
+```css
+.kpi-card {
+    border-left: 8px solid #2E5FA3;  /* Thicker */
+}
+```
+
+### KPI Card Elements
+
+KPI cards have three styled sub-elements:
+
+```css assets/style.css
+.kpi-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #8899AA;
+    text-transform: uppercase;  /* ALL CAPS */
+    letter-spacing: 1px;        /* Spacing between letters */
+}
+
+.kpi-value {
+    font-size: 30px;  /* Large number */
+    font-weight: 700;
+    color: #F0F4F8;
+}
+
+.kpi-delta {
+    font-size: 13px;
+    font-weight: 500;
+}
+```
+
+## Customizing Charts
+
+Chart styling comes from `config.py`'s `PLOTLY_THEME` and is applied in `components/charts.py`:
+
+```python config.py
+PLOTLY_THEME = {
+    "paper_bgcolor": COLORS["bg_card"],
+    "plot_bgcolor":  COLORS["bg_card"],
+    "font":          {
+        "color": COLORS["text_primary"],
+        "family": "Inter, sans-serif",
+        "size": 12
+    },
+    "margin":        dict(l=20, r=20, t=40, b=20),
+}
+```
+
+### Chart Customization Examples
+
+**Larger chart margins:**
+```python
+PLOTLY_THEME = {
+    # ...
+    "margin": dict(l=40, r=40, t=60, b=40),
+}
+```
+
+**Different font:**
+```python
+PLOTLY_THEME = {
+    # ...
+    "font": {
+        "color": COLORS["text_primary"],
+        "family": "Roboto, sans-serif",
+        "size": 13
+    },
+}
+```
+
+**Chart-specific styling:**
+
+Modify individual chart functions in `components/charts.py`:
+
+```python components/charts.py
+def chart_evolucion_ventas(...):
+    # ...
+    fig.add_trace(go.Scatter(
+        line = dict(
+            color = "#3B82F6",  # Custom color
+            width = 3,          # Thicker line
+        ),
+        # ...
+    ))
+```
+
+## Changing Fonts
+
+### 1. Import Font in CSS
+
+The dashboard uses Inter from Google Fonts:
+
+```css assets/style.css
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+* {
+    font-family: 'Inter', sans-serif !important;
+}
+```
+
+To use a different font:
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
+* {
+    font-family: 'Roboto', sans-serif !important;
+}
+```
+
+### 2. Update Chart Font
+
+Update `PLOTLY_THEME` in `config.py`:
+
+```python
+PLOTLY_THEME = {
+    # ...
+    "font": {
+        "color": COLORS["text_primary"],
+        "family": "Roboto, sans-serif",  # Match CSS font
+        "size": 12
+    },
+}
+```
+
+## Customizing Tables
+
+Ranking tables use the `.ranking-table` class:
+
+```css assets/style.css
+.ranking-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.ranking-table th {
+    font-size: 11px;
+    font-weight: 600;
+    color: #8899AA;
+    text-transform: uppercase;
+    padding: 10px 12px;
+    border-bottom: 1px solid #2D3F55;
+}
+
+.ranking-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #1E2D3D;
+    color: #F0F4F8;
+    font-size: 13px;
+}
+
+.ranking-table tr:hover td {
+    background: #243044;  /* Hover effect */
+}
+```
+
+### Modify Table Spacing
+
+```css
+.ranking-table th,
+.ranking-table td {
+    padding: 14px 16px;  /* More spacious */
+}
+```
+
+### Remove Hover Effect
+
+```css
+.ranking-table tr:hover td {
+    background: transparent;  /* No hover effect */
+}
+```
+
+## Badges and Labels
+
+Badges for categories and status use the `.badge` class:
+
+```css assets/style.css
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.badge-success { background: rgba(0, 196, 159, 0.15); color: #00C49F; }
+.badge-warning { background: rgba(255, 179, 71, 0.15);  color: #FFB347; }
+.badge-danger  { background: rgba(232, 72, 85, 0.15);   color: #E84855; }
+```
+
+### Create Custom Badge Style
+
+```css
+.badge-premium {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 3px 10px;
+    border-radius: 16px;
+}
+```
+
+Use in HTML:
+
+```python
+st.markdown('<span class="badge badge-premium">Premium</span>', unsafe_allow_html=True)
+```
+
+## Custom Scrollbar
+
+The scrollbar is styled with webkit selectors:
+
+```css assets/style.css
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0F1923;  /* Track color */
+}
+
+::-webkit-scrollbar-thumb {
+    background: #2D3F55;  /* Thumb color */
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #2E5FA3;  /* Hover color */
+}
+```
+
+<Note>
+Webkit scrollbar styles only work in Chrome, Edge, and Safari. Firefox uses different properties.
+</Note>
+
+## Animations
+
+The dashboard includes two CSS animations:
+
+```css assets/style.css
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+```
+
+Applied to elements:
+
+```css
+.kpi-card {
+    animation: fadeIn 0.3s ease-in;
+}
+
+.alert-card {
+    animation: slideIn 0.3s ease;
+}
+```
+
+### Disable Animations
+
+```css
+.kpi-card {
+    animation: none;
+}
+```
+
+### Custom Animation
+
+```css
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.highlight {
+    animation: pulse 2s infinite;
+}
+```
+
+## Component Inline Styles
+
+Custom components in `components/kpi_card.py` use inline styles:
+
+```python components/kpi_card.py
+def render_kpi_card(label, value, ...):
+    html = (
+        f"<div style='background:{COLORS['bg_card']};border-left:4px solid {sem_color};'"
+        f"border-radius:8px;padding:16px 18px;margin-bottom:4px;width:{width}'>" 
+        # ...
+    )
+    st.markdown(html, unsafe_allow_html=True)
+```
+
+### Customize Component Styling
+
+To modify inline styles, edit the component file:
+
+```python components/kpi_card.py
+def render_kpi_card(...):
+    html = (
+        f"<div style='background:{COLORS['bg_card']};"
+        f"border-left:6px solid {sem_color};"  # Thicker border
+        f"border-radius:12px;"  # More rounded
+        f"padding:20px 24px;"  # More padding
+        f"margin-bottom:8px;'>"  # More spacing
+        # ...
+    )
+```
+
+## Responsive Design
+
+Mobile styles are defined in a media query:
+
+```css assets/style.css
+@media (max-width: 768px) {
+    .kpi-value {
+        font-size: 22px;  /* Smaller on mobile */
+    }
+    
+    .kpi-card {
+        padding: 14px;  /* Less padding */
+    }
+    
+    .block-container {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
+}
+```
+
+### Add Tablet Breakpoint
+
+```css
+@media (max-width: 1024px) and (min-width: 769px) {
+    .kpi-value {
+        font-size: 26px;
+    }
+}
+```
+
+## Dark/Light Mode Toggle
+
+To add a light mode option:
+
+<Steps>
+  <Step title="Define light mode colors in config.py">
+    ```python config.py
+    COLORS_LIGHT = {
+        "primary":        "#1B3A6B",
+        "bg_dark":        "#FFFFFF",
+        "bg_card":        "#F5F7FA",
+        "text_primary":   "#1A202C",
+        "text_secondary": "#4A5568",
+        # ...
+    }
+    ```
+  </Step>
+  
+  <Step title="Create conditional CSS classes">
+    ```css assets/style.css
+    .stApp.light-mode {
+        background-color: #FFFFFF;
+    }
+    
+    .light-mode .kpi-card {
+        background: #F5F7FA;
+        color: #1A202C;
+    }
+    ```
+  </Step>
+  
+  <Step title="Add toggle in sidebar">
+    ```python app.py
+    import streamlit as st
+    
+    theme = st.sidebar.selectbox("Theme", ["Dark", "Light"])
+    
+    if theme == "Light":
+        st.markdown('<style>.stApp { ... light mode CSS ... }</style>',
+                    unsafe_allow_html=True)
+    ```
+  </Step>
+</Steps>
+
+## Complete Styling Example
+
+Here's a complete example of a custom blue theme:
+
+```python config.py
+# Blue theme colors
+COLORS = {
+    "primary":        "#1E3A8A",
+    "primary_light":  "#3B82F6",
+    "accent":         "#10B981",
+    "success":        "#10B981",
+    "warning":        "#F59E0B",
+    "danger":         "#EF4444",
+    "bg_dark":        "#0F172A",
+    "bg_card":        "#1E293B",
+    "bg_card_hover":  "#334155",
+    "text_primary":   "#F1F5F9",
+    "text_secondary": "#94A3B8",
+    "border":         "#334155",
+    "chart_seq": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444"],
+}
+```
+
+```css assets/style.css
+/* Update CSS to match */
+.stApp { background-color: #0F172A; }
+[data-testid="stSidebar"] { background-color: #1E293B !important; }
+.kpi-card { background: #1E293B; border-left: 4px solid #3B82F6; }
+.kpi-card:hover { background: #334155; }
+```
+
+Restart Streamlit to see your new theme!

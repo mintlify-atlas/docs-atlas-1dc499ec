@@ -1,0 +1,316 @@
+---
+title: 'Data Loader'
+description: 'Data loading, parsing, filtering, and caching for Excel data sources'
+icon: 'database'
+---
+
+The `data_loader` module handles all data input operations for Visor KPI Comercial. It loads sales data from Excel files, applies transformations, joins tables, and provides filtered datasets with Streamlit caching for optimal performance.
+
+## Core Functions
+
+### load_data
+
+```python
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_data() -> dict[str, pd.DataFrame]
+```
+
+Reads the Excel file and returns a dictionary of parsed DataFrames.
+
+**Returns:**
+
+Dictionary with keys:
+- `ventas`: Sales transactions with parsed dates and calculated fields
+- `vendedores`: Active sales reps with goals and tenure
+- `clientes`: Customer master data with channel and region
+- `productos`: Product catalog with pricing
+- `objetivos`: Monthly sales targets by seller
+
+**Caching:**
+
+<Note>
+  This function is cached with `@st.cache_data(ttl=3600)`. Data refreshes every 60 minutes automatically.
+</Note>
+
+**Raises:**
+
+`FileNotFoundError` if the data file does not exist at `DATA_PATH`
+
+**Data Transformations:**
+
+The function applies these transformations automatically:
+
+- **Ventas**: Parses `fecha` to datetime, extracts `año`, `mes`, `periodo` (monthly)
+- **Ventas**: Converts numeric columns (`importe_neto`, `cantidad`, etc.) with error handling
+- **Vendedores**: Converts `activo` to boolean
+- **Clientes**: Parses `fecha_alta` to datetime
+- **Productos**: Converts pricing columns to numeric
+- **Objetivos**: Constructs `periodo` from año/mes or parses existing column
+
+**Usage Example:**
+
+```python
+from src.data_loader import load_data
+
+data = load_data()
+ventas_df = data["ventas"]
+vendedores_df = data["vendedores"]
+```
+
+---
+
+### get_master_df
+
+```python
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_master_df() -> pd.DataFrame
+```
+
+Returns the master DataFrame with all table joins applied and calculated fields.
+
+**Returns:**
+
+DataFrame with columns from `ventas` plus:
+- `nombre_vendedor`, `zona_vendedor`, `perfil` (from vendedores)
+- `razon_social`, `canal`, `zona_cliente`, `cliente_activo` (from clientes)
+- `descripcion`, `categoria`, `precio_catalogo`, `costo_catalogo` (from productos)
+- `margen_neto`, `margen_pct` (calculated)
+
+**Calculated Fields:**
+
+<ParamField path="margen_neto" type="float">
+  Net margin per transaction: `importe_neto - (costo_catalogo / precio_catalogo * importe_neto)`
+</ParamField>
+
+<ParamField path="margen_pct" type="float">
+  Margin percentage clipped to [0, 1]: `margen_neto / importe_neto`
+</ParamField>
+
+**Usage Example:**
+
+```python
+from src.data_loader import get_master_df
+
+df = get_master_df()
+print(df[["fecha", "nombre_vendedor", "razon_social", "importe_neto", "margen_pct"]].head())
+```
+
+---
+
+## Filtering Functions
+
+### get_filtered_data
+
+```python
+def get_filtered_data(
+    fecha_desde: date,
+    fecha_hasta: date,
+    vendedores: list[str] | None = None,
+    zonas: list[str] | None = None,
+    canales: list[str] | None = None,
+) -> pd.DataFrame
+```
+
+Returns the master DataFrame filtered by the given parameters.
+
+**Parameters:**
+
+<ParamField path="fecha_desde" type="date" required>
+  Start date (inclusive)
+</ParamField>
+
+<ParamField path="fecha_hasta" type="date" required>
+  End date (inclusive)
+</ParamField>
+
+<ParamField path="vendedores" type="list[str] | None">
+  List of `id_vendedor` to filter. `None` = all sellers.
+</ParamField>
+
+<ParamField path="zonas" type="list[str] | None">
+  List of zones to filter. `None` = all zones.
+</ParamField>
+
+<ParamField path="canales" type="list[str] | None">
+  List of sales channels to filter. `None` = all channels.
+</ParamField>
+
+**Returns:**
+
+Filtered copy of master DataFrame
+
+**Usage Example:**
+
+```python
+from datetime import date
+from src.data_loader import get_filtered_data
+
+df = get_filtered_data(
+    fecha_desde=date(2024, 1, 1),
+    fecha_hasta=date(2024, 1, 31),
+    vendedores=["V001", "V002"],
+    zonas=["Norte", "Centro"],
+    canales=["Canal Tradicional"]
+)
+```
+
+---
+
+### get_filtered_data_periodo_anterior
+
+```python
+def get_filtered_data_periodo_anterior(
+    fecha_desde: date,
+    fecha_hasta: date,
+    vendedores: list[str] | None = None,
+    zonas: list[str] | None = None,
+    canales: list[str] | None = None,
+) -> pd.DataFrame
+```
+
+Returns data from the equivalent prior period with the same duration.
+
+**Parameters:**
+
+Same as `get_filtered_data`.
+
+**Returns:**
+
+Filtered DataFrame for the prior period (calculated using `get_periodo_anterior` from `config`)
+
+<Note>
+  This function automatically calculates the equivalent prior period. For example, if you pass Jan 1-31, it returns Dec 1-31.
+</Note>
+
+**Usage Example:**
+
+```python
+from datetime import date
+from src.data_loader import get_filtered_data, get_filtered_data_periodo_anterior
+
+df_actual = get_filtered_data(date(2024, 2, 1), date(2024, 2, 29))
+df_anterior = get_filtered_data_periodo_anterior(date(2024, 2, 1), date(2024, 2, 29))
+
+# Compare periods
+delta = (df_actual["importe_neto"].sum() - df_anterior["importe_neto"].sum()) / df_anterior["importe_neto"].sum()
+print(f"Growth: {delta*100:.1f}%")
+```
+
+---
+
+## Helper Functions
+
+### get_lista_vendedores
+
+```python
+def get_lista_vendedores() -> list[dict]
+```
+
+Returns a list of active sellers for filter dropdowns.
+
+**Returns:**
+
+List of dicts with keys:
+- `id_vendedor`: str
+- `nombre_completo`: str
+- `zona`: str
+
+**Usage Example:**
+
+```python
+from src.data_loader import get_lista_vendedores
+
+vendedores = get_lista_vendedores()
+for v in vendedores:
+    print(f"{v['nombre_completo']} - {v['zona']}")
+```
+
+---
+
+### get_lista_zonas
+
+```python
+def get_lista_zonas() -> list[str]
+```
+
+Returns sorted list of unique zones from the vendedores table.
+
+**Returns:**
+
+`list[str]` of zone names
+
+---
+
+### get_lista_canales
+
+```python
+def get_lista_canales() -> list[str]
+```
+
+Returns sorted list of unique sales channels from the clientes table.
+
+**Returns:**
+
+`list[str]` of channel names
+
+---
+
+### check_data_available
+
+```python
+def check_data_available() -> bool
+```
+
+Verifies if the data file exists at `DATA_PATH`.
+
+**Returns:**
+
+`True` if file exists, `False` otherwise
+
+**Usage Example:**
+
+```python
+from src.data_loader import check_data_available
+
+if not check_data_available():
+    st.error("Data file not found. Run: python data/mock/generate_mock_data.py")
+    st.stop()
+```
+
+---
+
+## Real-World Usage
+
+### In app.py (Executive Dashboard)
+
+```python
+from src.data_loader import load_data, get_filtered_data, get_filtered_data_periodo_anterior
+
+data = load_data()
+df = get_filtered_data(fecha_desde, fecha_hasta, vendedores_sel, zonas_sel, canales_sel)
+df_ant = get_filtered_data_periodo_anterior(fecha_desde, fecha_hasta, vendedores_sel, zonas_sel, canales_sel)
+
+clientes_df = data["clientes"]
+productos_df = data["productos"]
+objetivos_df = data["objetivos"]
+```
+
+### In pages/2_vendedores.py (Seller View)
+
+```python
+df = get_filtered_data(fecha_desde, fecha_hasta, [vendedor_id], zonas_sel, canales_sel)
+df_ant = get_filtered_data_periodo_anterior(fecha_desde, fecha_hasta, [vendedor_id], zonas_sel, canales_sel)
+df_eq = get_filtered_data(fecha_desde, fecha_hasta, None, zonas_sel, canales_sel)
+```
+
+---
+
+## File Path
+
+`src/data_loader.py`
+
+## Dependencies
+
+- `pandas`
+- `streamlit` (for caching decorators)
+- `config.DATA_PATH`, `config.get_periodo_anterior`

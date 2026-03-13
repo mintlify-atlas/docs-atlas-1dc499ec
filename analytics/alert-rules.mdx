@@ -1,0 +1,547 @@
+---
+title: Alert Rules & Business Logic
+description: Complete reference for the 7 automated alert rules that monitor sales performance and identify opportunities
+icon: bell
+---
+
+## Overview
+
+The alerts engine (`src/alerts_engine.py`) evaluates 7 predefined business rules against sales data and generates actionable alerts for the commercial team. Alerts are classified by severity and entity type.
+
+<Info>
+  The alert system runs automatically when the dashboard loads and evaluates all active rules against the current dataset.
+</Info>
+
+---
+
+## Alert Severity Levels
+
+| Severity | Purpose | Response Time |
+|----------|---------|---------------|
+| **alta** (High) | Critical issues requiring immediate action | Same day |
+| **media** (Medium) | Important concerns needing attention soon | Within 2-3 days |
+| **baja** (Low) | Minor issues or observations | Weekly review |
+| **info** | Opportunities and positive indicators | Informational |
+
+---
+
+## Alert Rule Definitions
+
+### ALT001: Critical Low Performance (Salesperson)
+
+<Card icon="user-xmark" color="#E84855">
+  **Vendedor bajo rendimiento crítico**
+</Card>
+
+**Trigger Condition:**
+```python
+cumplimiento_pct < 0.65  # Less than 65% of objective
+# Evaluated over the last 30 days
+```
+
+**Entity Type:** `vendedor` (Salesperson)
+
+**Severity:** `alta` (High)
+
+**Business Logic:**
+
+1. Filter sales to last 30 days: `df[df["fecha"] >= today - 30 days]`
+2. Group sales by salesperson: `groupby("id_vendedor")["importe_neto"].sum()`
+3. Get monthly objectives from `objetivos_df` for current month
+4. Calculate compliance: `importe / objetivo`
+5. Trigger if compliance < 0.65 (65%)
+
+**Alert Fields:**
+- `entidad_id`: Salesperson ID
+- `entidad_nombre`: Salesperson name
+- `valor_actual`: Actual compliance percentage (e.g., 0.58)
+- `valor_referencia`: 0.65 (threshold)
+- `descripcion_detalle`: "Cumplimiento: 58.0% (umbral: 65%)"
+- `accion_sugerida`: "Revisar cartera y objetivos con supervisor"
+
+**Source:** `src/alerts_engine.py:16-21`, implementation at lines 102-124
+
+---
+
+### ALT002: Customer Inactivity (Risk of Loss)
+
+<Card icon="user-clock" color="#FFB347">
+  **Cliente sin compras (riesgo de pérdida)**
+</Card>
+
+**Trigger Condition:**
+```python
+cliente.activo == True  # Customer is active in master data
+AND
+days_since_last_purchase > 45  # No purchases in 45+ days
+```
+
+**Entity Type:** `cliente` (Customer)
+
+**Severity:** `media` (Medium)
+
+**Business Logic:**
+
+1. Get list of active customers: `clientes_df[clientes_df["activo"] == True]`
+2. Find last purchase date per customer: `groupby("id_cliente")["fecha"].max()`
+3. Calculate days since: `(today - ultima_compra).days`
+4. Trigger if days > 45 or if customer never purchased
+
+**Alert Fields:**
+- `entidad_id`: Customer ID
+- `entidad_nombre`: Customer business name (razon_social)
+- `valor_actual`: Days since last purchase
+- `valor_referencia`: 45 (threshold)
+- `descripcion_detalle`: "Sin compras hace 52 días"
+- `accion_sugerida`: "Contacto de recuperación urgente"
+
+**Source:** `src/alerts_engine.py:23-30`, implementation at lines 126-145
+
+---
+
+### ALT003: Decline in High-Value Customer
+
+<Card icon="chart-line-down" color="#E84855">
+  **Caída de venta en cliente relevante**
+</Card>
+
+**Trigger Condition:**
+```python
+cliente.categoria_pareto == "A"  # High-value customer (top 80%)
+AND
+(importe_actual - importe_anterior) / importe_anterior < -0.25  # 25%+ decline
+```
+
+**Entity Type:** `cliente` (Customer)
+
+**Severity:** `alta` (High)
+
+**Business Logic:**
+
+1. Calculate current period sales by customer
+2. Apply Pareto analysis: `calcular_pareto(grp, "importe_actual", "id_cliente")`
+3. Identify category A customers
+4. Compare to previous period sales
+5. Calculate delta: `(imp_act - imp_ant) / imp_ant`
+6. Trigger if delta < -0.25 (25% decline)
+
+**Alert Fields:**
+- `entidad_id`: Customer ID
+- `entidad_nombre`: Customer business name
+- `valor_actual`: Decline percentage (e.g., -0.32 = -32%)
+- `valor_referencia`: -0.25 (threshold)
+- `descripcion_detalle`: "Caída: -32.0% ($450,000 → $306,000)"
+- `accion_sugerida`: "Visita de cuenta clave"
+
+<Warning>
+  This is a critical alert. Category A customers represent the majority of revenue, and significant declines can materially impact business results.
+</Warning>
+
+**Source:** `src/alerts_engine.py:32-38`, implementation at lines 147-175
+
+---
+
+### ALT004: Product Without Movement
+
+<Card icon="box" color="#8899AA">
+  **Producto sin movimiento**
+</Card>
+
+**Trigger Condition:**
+```python
+producto.activo == True  # Product is active
+AND
+days_since_last_sale > 60  # No sales in 60+ days
+```
+
+**Entity Type:** `producto` (Product)
+
+**Severity:** `baja` (Low)
+
+**Business Logic:**
+
+1. Get active products: `productos_df[productos_df["activo"] == True]`
+2. Find last sale date per product: `groupby("id_producto")["fecha"].max()`
+3. Calculate days: `(today - ultima_venta).days`
+4. Trigger if days > 60
+
+**Alert Fields:**
+- `entidad_id`: Product ID
+- `entidad_nombre`: Product description
+- `valor_actual`: Days without sales
+- `valor_referencia`: 60 (threshold)
+- `descripcion_detalle`: "Sin ventas hace 73 días"
+- `accion_sugerida`: "Revisar disponibilidad y push comercial"
+
+**Source:** `src/alerts_engine.py:40-46`, implementation at lines 177-197
+
+---
+
+### ALT005: Salesperson No Recent Activity
+
+<Card icon="user-slash" color="#FFB347">
+  **Vendedor sin actividad reciente**
+</Card>
+
+**Trigger Condition:**
+```python
+days_since_last_transaction > 7  # Business days
+# Evaluated against working days (Monday-Friday)
+```
+
+**Entity Type:** `vendedor` (Salesperson)
+
+**Severity:** `media` (Medium)
+
+**Business Logic:**
+
+1. Calculate 7 business days ago using `_retroceder_dias_habiles(today, 7)`
+2. Find last transaction date per salesperson: `groupby("id_vendedor")["fecha"].max()`
+3. Trigger if last activity < 7 business days ago
+
+**Helper Function:**
+```python
+def _retroceder_dias_habiles(hoy: date, n: int) -> date:
+    """Retrocede n días hábiles desde hoy."""
+    d = hoy
+    count = 0
+    while count < n:
+        d -= timedelta(days=1)
+        if d.weekday() < 5:  # Monday-Friday
+            count += 1
+    return d
+```
+
+**Alert Fields:**
+- `entidad_id`: Salesperson ID
+- `entidad_nombre`: Salesperson name
+- `valor_actual`: Days since last sale
+- `valor_referencia`: 7 (business days)
+- `descripcion_detalle`: "Última venta: 2026-03-01"
+- `accion_sugerida`: "Verificar actividad de campo"
+
+<Note>
+  This alert helps identify salespeople who may need support, are on leave, or are experiencing territory issues.
+</Note>
+
+**Source:** `src/alerts_engine.py:48-54`, implementation at lines 199-217, helper at lines 342-350
+
+---
+
+### ALT006: Opportunity - Growing B Customer
+
+<Card icon="arrow-trend-up" color="#00C49F">
+  **Oportunidad: cliente B en crecimiento**
+</Card>
+
+**Trigger Condition:**
+```python
+cliente.categoria_pareto == "B"  # Medium-value customer
+AND
+(importe_actual - importe_anterior) / importe_anterior > 0.30  # 30%+ growth
+```
+
+**Entity Type:** `cliente` (Customer)
+
+**Severity:** `info` (Informational - Opportunity)
+
+**Business Logic:**
+
+1. Calculate current period sales by customer
+2. Apply Pareto: `calcular_pareto(grp, "importe_actual", "id_cliente")`
+3. Identify category B customers (80-95% cumulative)
+4. Compare to previous period
+5. Calculate delta: `(imp_act - imp_ant) / imp_ant`
+6. Trigger if delta > 0.30 (30% growth)
+
+**Alert Fields:**
+- `entidad_id`: Customer ID
+- `entidad_nombre`: Customer business name
+- `valor_actual`: Growth percentage (e.g., 0.42 = +42%)
+- `valor_referencia`: 0.30 (threshold)
+- `descripcion_detalle`: "Crecimiento: +42.0%"
+- `accion_sugerida`: "Potencial para upgrade a categoría A — aumentar frecuencia de visita"
+
+<Tip>
+  This is a positive alert identifying customers who may be promoted to category A with proper nurturing. Consider increasing visit frequency and exploring upsell opportunities.
+</Tip>
+
+**Source:** `src/alerts_engine.py:56-62`, implementation at lines 219-247
+
+---
+
+### ALT007: Team Near Monthly Goal
+
+<Card icon="trophy" color="#00C49F">
+  **Equipo cerca del objetivo mensual**
+</Card>
+
+**Trigger Condition:**
+```python
+cumplimiento_general > 0.85  # Team at 85%+ of monthly objective
+AND
+dias_habiles_restantes > 5   # More than 5 business days left in month
+```
+
+**Entity Type:** `equipo` (Team-wide)
+
+**Severity:** `info` (Informational - Opportunity)
+
+**Business Logic:**
+
+1. Sum all objectives for current month from `objetivos_df`
+2. Sum all sales for current month: `df[df["fecha"].dt.month == current_month]`
+3. Calculate compliance: `ventas_mes / obj_total`
+4. Count remaining business days: `_dias_habiles_restantes_mes(today)`
+5. Trigger if compliance > 0.85 AND remaining days > 5
+
+**Helper Function:**
+```python
+def _dias_habiles_restantes_mes(hoy: date) -> int:
+    """Días hábiles que quedan en el mes actual."""
+    from calendar import monthrange
+    ultimo_dia = monthrange(hoy.year, hoy.month)[1]
+    count = 0
+    for d in range(hoy.day + 1, ultimo_dia + 1):
+        if date(hoy.year, hoy.month, d).weekday() < 5:
+            count += 1
+    return count
+```
+
+**Alert Fields:**
+- `entidad_id`: "EQUIPO"
+- `entidad_nombre`: "Equipo Comercial"
+- `valor_actual`: Current compliance (e.g., 0.87)
+- `valor_referencia`: 0.85 (threshold)
+- `descripcion_detalle`: "Cumplimiento: 87.0% | Días hábiles restantes: 8"
+- `accion_sugerida`: "Push final para cerrar mes en verde"
+
+<Info>
+  This motivational alert signals that the team is close to hitting the monthly target with time to spare. It's an opportunity for a final push to achieve 100% or exceed goals.
+</Info>
+
+**Source:** `src/alerts_engine.py:64-70`, implementation at lines 249-270, helper at lines 353-361
+
+---
+
+## Core Function: `get_alertas_activas()`
+
+### Function Signature
+
+```python
+def get_alertas_activas(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None,
+    clientes_df: pd.DataFrame,
+    productos_df: pd.DataFrame,
+    objetivos_df: pd.DataFrame | None = None,
+    fecha_hasta: date | None = None,
+) -> pd.DataFrame
+```
+
+### Parameters
+
+<ParamField path="df" type="DataFrame" required>
+  Current period sales transactions (already filtered)
+</ParamField>
+
+<ParamField path="df_anterior" type="DataFrame">
+  Previous period sales for comparison (optional but recommended)
+</ParamField>
+
+<ParamField path="clientes_df" type="DataFrame" required>
+  Customer master data with `activo` flag
+</ParamField>
+
+<ParamField path="productos_df" type="DataFrame" required>
+  Product master data with `activo` flag
+</ParamField>
+
+<ParamField path="objetivos_df" type="DataFrame">
+  Sales objectives by salesperson and period (optional)
+</ParamField>
+
+<ParamField path="fecha_hasta" type="date">
+  Reference date for "days since" calculations (defaults to today)
+</ParamField>
+
+### Returns
+
+DataFrame with the following columns:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id_alerta` | str | Alert ID (ALT001-ALT007) |
+| `nombre` | str | Alert name in Spanish |
+| `severidad` | str | 'alta', 'media', 'baja', or 'info' |
+| `entidad_tipo` | str | 'vendedor', 'cliente', 'producto', or 'equipo' |
+| `entidad_id` | str | ID of the entity triggering the alert |
+| `entidad_nombre` | str | Display name of the entity |
+| `valor_actual` | float | Current metric value |
+| `valor_referencia` | float | Threshold value |
+| `descripcion_detalle` | str | Human-readable detail text |
+| `fecha_deteccion` | date | Date alert was detected |
+| `accion_sugerida` | str | Recommended action |
+
+**Sorting:** Alerts are sorted by severity (alta → media → baja → info)
+
+**Source:** `src/alerts_engine.py:74-286`
+
+---
+
+## Alert Output Example
+
+```python
+import pandas as pd
+from src.alerts_engine import get_alertas_activas
+
+alertas = get_alertas_activas(
+    df=ventas_marzo,
+    df_anterior=ventas_febrero,
+    clientes_df=clientes_master,
+    productos_df=productos_master,
+    objetivos_df=objetivos,
+    fecha_hasta=date(2026, 3, 13)
+)
+
+# Sample output:
+#   id_alerta  nombre                           severidad  entidad_tipo  entidad_id
+# 0 ALT003     Caída de venta en cliente...    alta       cliente       CLI042
+# 1 ALT001     Vendedor bajo rendimiento...    alta       vendedor      VEN08
+# 2 ALT002     Cliente sin compras...          media      cliente       CLI123
+# 3 ALT005     Vendedor sin actividad...       media      vendedor      VEN04
+# 4 ALT006     Oportunidad: cliente B...       info       cliente       CLI099
+```
+
+---
+
+## Helper Functions
+
+### `_crear_alerta()`
+
+Standardizes alert dictionary creation.
+
+```python
+def _crear_alerta(
+    regla: dict,
+    entidad_id: str,
+    entidad_nom: str,
+    val_actual: float,
+    val_ref: float,
+    detalle: str,
+    fecha: date,
+) -> dict
+```
+
+**Source:** `src/alerts_engine.py:293-314`
+
+---
+
+### `_get_nombre_vendedor()`
+
+Extracts salesperson name from transactions DataFrame.
+
+```python
+def _get_nombre_vendedor(df: pd.DataFrame, vend_id: str) -> str
+```
+
+Returns the vendor ID if name column doesn't exist.
+
+**Source:** `src/alerts_engine.py:317-322`
+
+---
+
+### `_get_nombre_cliente()`
+
+Extracts customer business name from master data.
+
+```python
+def _get_nombre_cliente(clientes_df: pd.DataFrame, cli_id: str) -> str
+```
+
+**Source:** `src/alerts_engine.py:325-330`
+
+---
+
+### `_get_objetivo_mes()`
+
+Returns monthly objective per salesperson as a dictionary.
+
+```python
+def _get_objetivo_mes(objetivos_df: pd.DataFrame, hoy: date) -> dict
+```
+
+**Returns:** `{"VEN01": 150000.0, "VEN02": 200000.0, ...}`
+
+**Source:** `src/alerts_engine.py:333-339`
+
+---
+
+## Alert Rules Reference Table
+
+| ID | Name | Entity | Severity | Threshold |
+|----|------|--------|----------|----------|
+| **ALT001** | Low performance | Salesperson | High | &lt;65% compliance |
+| **ALT002** | No purchases | Customer | Medium | 45+ days inactive |
+| **ALT003** | Declining sales | Customer (A) | High | -25% vs previous |
+| **ALT004** | No movement | Product | Low | 60+ days no sales |
+| **ALT005** | No activity | Salesperson | Medium | 7+ business days |
+| **ALT006** | Growth opportunity | Customer (B) | Info | +30% vs previous |
+| **ALT007** | Near goal | Team | Info | >85% with 5+ days left |
+
+---
+
+## Integration with Dashboard
+
+### Alert Count Summary
+
+Used in executive insights:
+
+```python
+n_alertas = len(alertas_df)
+n_criticas = len(alertas_df[alertas_df["severidad"] == "alta"])
+n_medias = len(alertas_df[alertas_df["severidad"] == "media"])
+n_info = len(alertas_df[alertas_df["severidad"].isin(["baja", "info"])])
+```
+
+### Alert Display Components
+
+Each alert can be displayed with:
+- Severity badge (color-coded)
+- Entity name as clickable link
+- Metric comparison (actual vs. reference)
+- Suggested action as call-to-action button
+
+---
+
+## Business Thresholds Summary
+
+| Metric | Threshold | Source |
+|--------|-----------|--------|
+| Critical compliance | 65% | Alert rule ALT001 |
+| Customer inactivity | 45 days | Alert rule ALT002 |
+| Category A decline | -25% | Alert rule ALT003 |
+| Product no sales | 60 days | Alert rule ALT004 |
+| Salesperson inactive | 7 business days | Alert rule ALT005 |
+| Growth opportunity | +30% | Alert rule ALT006 |
+| Team near goal | 85% compliance | Alert rule ALT007 |
+
+<Note>
+  These thresholds are hard-coded in the alert rules. To modify, edit the conditions in `src/alerts_engine.py` lines 14-71.
+</Note>
+
+---
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="KPI Calculations" icon="calculator" href="/analytics/kpi-calculations">
+    How KPIs feed into alert conditions
+  </Card>
+  <Card title="Pareto Analysis" icon="chart-pyramid" href="/analytics/pareto-analysis">
+    Understanding category A and B customers
+  </Card>
+  <Card title="Performance Metrics" icon="gauge-high" href="/analytics/performance-metrics">
+    Compliance thresholds and semaphore logic
+  </Card>
+</CardGroup>

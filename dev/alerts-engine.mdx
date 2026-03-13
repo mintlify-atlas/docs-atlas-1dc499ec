@@ -1,0 +1,405 @@
+---
+title: 'Alerts Engine'
+description: 'Intelligent alerts and commercial opportunity detection system'
+icon: 'bell'
+---
+
+The `alerts_engine` module evaluates sales data against 7 predefined business rules to detect risks, performance issues, and commercial opportunities in real-time.
+
+---
+
+## Alert Rules
+
+The engine evaluates these rules on every execution:
+
+| ID | Rule | Severity | Entity |
+|----|------|----------|--------|
+| **ALT001** | Seller critical underperformance | 🔴 Alta | Vendedor |
+| **ALT002** | Customer without purchases (churn risk) | 🟡 Media | Cliente |
+| **ALT003** | Drop in key customer sales | 🔴 Alta | Cliente |
+| **ALT004** | Product without movement | 🔵 Baja | Producto |
+| **ALT005** | Seller without recent activity | 🟡 Media | Vendedor |
+| **ALT006** | Opportunity: Category B customer growth | 🟢 Info | Cliente |
+| **ALT007** | Team close to monthly goal | 🟢 Info | Equipo |
+
+<Note>
+  Alert rules are defined in the `ALERT_RULES` list at the top of the module. Each rule includes `id`, `nombre`, `condicion`, `severidad`, `entidad_tipo`, and `accion_sugerida`.
+</Note>
+
+---
+
+## Core Function
+
+### get_alertas_activas
+
+```python
+def get_alertas_activas(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None,
+    clientes_df: pd.DataFrame,
+    productos_df: pd.DataFrame,
+    objetivos_df: pd.DataFrame | None = None,
+    fecha_hasta: date | None = None,
+) -> pd.DataFrame
+```
+
+Evaluates all rules and returns a DataFrame of active alerts.
+
+**Parameters:**
+
+<ParamField path="df" type="pd.DataFrame" required>
+  Current period sales (filtered)
+</ParamField>
+
+<ParamField path="df_anterior" type="pd.DataFrame | None" required>
+  Prior period sales (can be `None`, but some rules won't fire)
+</ParamField>
+
+<ParamField path="clientes_df" type="pd.DataFrame" required>
+  Customer master table
+</ParamField>
+
+<ParamField path="productos_df" type="pd.DataFrame" required>
+  Product master table
+</ParamField>
+
+<ParamField path="objetivos_df" type="pd.DataFrame | None">
+  Sales objectives (required for ALT001, ALT007)
+</ParamField>
+
+<ParamField path="fecha_hasta" type="date | None">
+  Reference date for recency calculations (defaults to `date.today()`)
+</ParamField>
+
+**Returns:**
+
+DataFrame with columns:
+
+```python
+[
+    "id_alerta",           # "ALT001", "ALT002", etc.
+    "nombre",              # Rule name
+    "severidad",           # "alta", "media", "baja", "info"
+    "entidad_tipo",        # "vendedor", "cliente", "producto", "equipo"
+    "entidad_id",          # ID of affected entity
+    "entidad_nombre",      # Name of entity
+    "valor_actual",        # Current metric value (float)
+    "valor_referencia",    # Threshold/reference value (float)
+    "descripcion_detalle", # Human-readable detail
+    "fecha_deteccion",     # Detection date
+    "accion_sugerida"      # Recommended action
+]
+```
+
+Rows are sorted by severity: `alta` → `media` → `baja` → `info`.
+
+**Usage Example:**
+
+```python
+from src.alerts_engine import get_alertas_activas
+from datetime import date
+
+alertas = get_alertas_activas(
+    df=df,
+    df_anterior=df_ant,
+    clientes_df=clientes_df,
+    productos_df=productos_df,
+    objetivos_df=objetivos_df,
+    fecha_hasta=date.today()
+)
+
+print(f"Total alerts: {len(alertas)}")
+for _, alerta in alertas.iterrows():
+    print(f"[{alerta['severidad'].upper()}] {alerta['nombre']} - {alerta['entidad_nombre']}")
+```
+
+---
+
+## Alert Rules Detail
+
+### ALT001: Seller Critical Underperformance
+
+**Condition:** `cumplimiento_pct < 0.65` in the last 30 days
+
+**Severity:** 🔴 Alta
+
+**Action:** Review portfolio and objectives with supervisor
+
+**Data Requirements:**
+- `objetivos_df` must be provided
+- Evaluates last 30 days from `fecha_hasta`
+
+**Example Alert:**
+
+```python
+{
+    "id_alerta": "ALT001",
+    "entidad_id": "V003",
+    "entidad_nombre": "Juan Pérez",
+    "valor_actual": 0.58,  # 58% achievement
+    "valor_referencia": 0.65,
+    "descripcion_detalle": "Cumplimiento: 58.0% (umbral: 65%)",
+    "accion_sugerida": "Revisar cartera y objetivos con supervisor"
+}
+```
+
+---
+
+### ALT002: Customer Without Purchases (Churn Risk)
+
+**Condition:** Active customer with no purchases in the last 45 days
+
+**Severity:** 🟡 Media
+
+**Action:** Urgent recovery contact
+
+**Data Requirements:**
+- `clientes_df` with `activo` column
+- Checks `ultima_compra` from `df`
+
+---
+
+### ALT003: Drop in Key Customer Sales
+
+**Condition:** Category A customer with >25% drop vs prior period
+
+**Severity:** 🔴 Alta
+
+**Action:** Key account visit
+
+**Data Requirements:**
+- `df_anterior` must be provided
+- Uses Pareto analysis to identify Category A customers
+
+**Example Alert:**
+
+```python
+{
+    "id_alerta": "ALT003",
+    "entidad_id": "C042",
+    "entidad_nombre": "Supermercados El Sol S.A.",
+    "valor_actual": -0.32,  # -32% delta
+    "valor_referencia": -0.25,
+    "descripcion_detalle": "Caída: -32.0% ($145,200 → $98,736)",
+    "accion_sugerida": "Visita de cuenta clave"
+}
+```
+
+---
+
+### ALT004: Product Without Movement
+
+**Condition:** Active product with no sales in 60 days
+
+**Severity:** 🔵 Baja
+
+**Action:** Review availability and commercial push
+
+---
+
+### ALT005: Seller Without Recent Activity
+
+**Condition:** No transactions in the last 7 business days
+
+**Severity:** 🟡 Media
+
+**Action:** Verify field activity
+
+<Note>
+  This rule uses `_retroceder_dias_habiles()` to calculate business days (Mon-Fri only).
+</Note>
+
+---
+
+### ALT006: Opportunity - Category B Customer Growth
+
+**Condition:** Category B customer with >30% growth vs prior period
+
+**Severity:** 🟢 Info (Opportunity)
+
+**Action:** Potential upgrade to Category A — increase visit frequency
+
+**Example Alert:**
+
+```python
+{
+    "id_alerta": "ALT006",
+    "entidad_id": "C128",
+    "entidad_nombre": "Distribuidora Norte",
+    "valor_actual": 0.42,  # +42% growth
+    "valor_referencia": 0.30,
+    "descripcion_detalle": "Crecimiento: +42.0%",
+    "accion_sugerida": "Potencial para upgrade a categoría A — aumentar frecuencia de visita"
+}
+```
+
+---
+
+### ALT007: Team Close to Monthly Goal
+
+**Condition:** Overall achievement >85% AND >5 business days remaining in month
+
+**Severity:** 🟢 Info (Opportunity)
+
+**Action:** Final push to close month in green
+
+**Data Requirements:**
+- `objetivos_df` must be provided
+- Evaluates current month only
+
+---
+
+## Helper Functions
+
+### _crear_alerta
+
+```python
+def _crear_alerta(
+    regla: dict,
+    entidad_id: str,
+    entidad_nom: str,
+    val_actual: float,
+    val_ref: float,
+    detalle: str,
+    fecha: date,
+) -> dict
+```
+
+Internal function to construct an alert dictionary from a rule.
+
+---
+
+### _get_nombre_vendedor / _get_nombre_cliente
+
+```python
+def _get_nombre_vendedor(df: pd.DataFrame, vend_id: str) -> str
+def _get_nombre_cliente(clientes_df: pd.DataFrame, cli_id: str) -> str
+```
+
+Resolve entity names from IDs for alert display.
+
+---
+
+### _get_objetivo_mes
+
+```python
+def _get_objetivo_mes(objetivos_df: pd.DataFrame, hoy: date) -> dict
+```
+
+Returns a dict of `{id_vendedor: objetivo}` for the current month.
+
+---
+
+### _retroceder_dias_habiles
+
+```python
+def _retroceder_dias_habiles(hoy: date, n: int) -> date
+```
+
+Goes back `n` business days (Mon-Fri only) from `hoy`.
+
+---
+
+### _dias_habiles_restantes_mes
+
+```python
+def _dias_habiles_restantes_mes(hoy: date) -> int
+```
+
+Counts remaining business days in the current month.
+
+---
+
+## Real-World Usage
+
+### In app.py (Executive Dashboard)
+
+```python
+from src.alerts_engine import get_alertas_activas
+
+alertas = get_alertas_activas(df, df_ant, clientes_df, productos_df, objetivos_df, fecha_hasta)
+
+if alertas.empty:
+    st.success("✅ Sin alertas activas en este período.")
+else:
+    n_alta = len(alertas[alertas["severidad"] == "alta"])
+    n_media = len(alertas[alertas["severidad"] == "media"])
+    n_info = len(alertas[alertas["severidad"].isin(["baja", "info"])])
+
+    st.metric("🔴 Críticas", n_alta)
+    st.metric("🟡 Medias", n_media)
+    st.metric("🔵 Informativas", n_info)
+
+    # Display top 4 alerts
+    for _, alerta in alertas.head(4).iterrows():
+        st.markdown(f"""
+        <div class="alert-card {alerta['severidad']}">
+            <div class="alert-title">{alerta['nombre']}</div>
+            <div class="alert-detail">
+                <strong>{alerta['entidad_nombre']}</strong> — {alerta['descripcion_detalle']}
+            </div>
+            <div class="alert-action">💡 {alerta['accion_sugerida']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+```
+
+### Filtering Alerts by Severity
+
+```python
+# Critical alerts only
+criticas = alertas[alertas["severidad"] == "alta"]
+
+# Seller-related alerts
+vendedor_alerts = alertas[alertas["entidad_tipo"] == "vendedor"]
+
+# Opportunities only
+oportunidades = alertas[alertas["severidad"] == "info"]
+```
+
+---
+
+## Extending the Engine
+
+To add a new alert rule:
+
+1. **Add rule definition** to `ALERT_RULES` list:
+
+```python
+{
+    "id": "ALT008",
+    "nombre": "My New Rule",
+    "condicion": "Description of condition",
+    "severidad": "media",
+    "entidad_tipo": "cliente",
+    "accion_sugerida": "What to do",
+}
+```
+
+2. **Implement evaluation logic** in `get_alertas_activas()` function:
+
+```python
+# ── ALT008: My New Rule ────────────────────────────────────
+if some_condition:
+    for entity_id in affected_entities:
+        alertas.append(_crear_alerta(
+            regla=ALERT_RULES[7],  # Index of your rule
+            entidad_id=entity_id,
+            entidad_nom=entity_name,
+            val_actual=current_value,
+            val_ref=threshold,
+            detalle=f"Detail message",
+            fecha=hoy,
+        ))
+```
+
+---
+
+## File Path
+
+`src/alerts_engine.py`
+
+## Dependencies
+
+- `pandas`, `numpy`
+- `src.pareto.calcular_pareto` (for ALT003, ALT006)
+- Python `datetime`, `timedelta`

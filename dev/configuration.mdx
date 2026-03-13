@@ -1,0 +1,325 @@
+---
+title: Configuration
+description: Complete guide to configuring Visor KPI Comercial settings
+---
+
+All configuration for Visor KPI Comercial is centralized in `config.py`. This file contains colors, thresholds, business constants, formatting functions, and theme settings.
+
+## Color Palette
+
+The dashboard uses a dark mode professional theme. Colors are defined in the `COLORS` dictionary:
+
+```python config.py
+COLORS = {
+    # Primarios
+    "primary":        "#1B3A6B",
+    "primary_light":  "#2E5FA3",
+    "accent":         "#00C49F",
+
+    # Semáforo de performance
+    "success":        "#00C49F",
+    "warning":        "#FFB347",
+    "danger":         "#E84855",
+
+    # Neutros
+    "bg_dark":        "#0F1923",
+    "bg_card":        "#1A2535",
+    "bg_card_hover":  "#243044",
+    "text_primary":   "#F0F4F8",
+    "text_secondary": "#8899AA",
+    "border":         "#2D3F55",
+
+    # Gráficos (secuencia para series múltiples)
+    "chart_seq": [
+        "#2E5FA3", "#00C49F", "#FFB347",
+        "#E84855", "#9B59B6", "#3498DB",
+        "#1ABC9C", "#F39C12"
+    ],
+}
+```
+
+### Customizing Colors
+
+To change the color scheme:
+
+<Steps>
+  <Step title="Open config.py">
+    Navigate to the project root and open `config.py`
+  </Step>
+  
+  <Step title="Modify the COLORS dictionary">
+    Update any color values using hex codes. For example, to use a blue theme:
+    ```python
+    "primary": "#1E3A8A",
+    "accent": "#3B82F6",
+    ```
+  </Step>
+  
+  <Step title="Restart the application">
+    Restart Streamlit to apply changes:
+    ```bash
+    streamlit run app.py
+    ```
+  </Step>
+</Steps>
+
+<Note>
+The `chart_seq` list defines colors for multi-series charts. Add more colors to this array if you have charts with many series.
+</Note>
+
+## Performance Thresholds
+
+Thresholds control the traffic light (semáforo) indicators and alert triggers:
+
+```python config.py
+THRESHOLDS = {
+    "cumplimiento_ok":      1.00,   # 100% → verde
+    "cumplimiento_warning": 0.80,   # 80%  → naranja
+    # debajo de 0.80 → rojo
+
+    "caida_critica":       -0.20,   # -20% vs período anterior = alerta
+    "crecimiento_notable":  0.15,   # +15% vs período anterior = destacar
+
+    "pareto_acumulado":     0.80,   # 80% del volumen = clientes A
+    "pareto_B":             0.95,   # 80-95% = clientes B, >95% = C
+}
+```
+
+### Threshold Meanings
+
+| Threshold | Purpose | Default Value |
+|-----------|---------|---------------|
+| `cumplimiento_ok` | Minimum % to show green indicator | 1.00 (100%) |
+| `cumplimiento_warning` | Minimum % to show orange instead of red | 0.80 (80%) |
+| `caida_critica` | Negative growth % that triggers critical alert | -0.20 (-20%) |
+| `crecimiento_notable` | Positive growth % to highlight | 0.15 (+15%) |
+| `pareto_acumulado` | Cumulative % for Pareto category A | 0.80 (80%) |
+| `pareto_B` | Cumulative % boundary between B and C | 0.95 (95%) |
+
+<Tip>
+Adjust `cumplimiento_warning` to make the traffic light more or less strict. For example, set to `0.90` to require 90% achievement for orange status.
+</Tip>
+
+## Business Constants
+
+### Company Information
+
+```python config.py
+EMPRESA = {
+    "nombre":    "Distribuidora Del Sur S.A.",
+    "periodo_inicio": date(2023, 1, 1),
+    "periodo_fin":    date(2026, 3, 31),
+}
+```
+
+Update these values to match your company:
+- **`nombre`**: Company name displayed in reports
+- **`periodo_inicio`**: Start date of available data
+- **`periodo_fin`**: End date of available data
+
+### Sales Zones and Channels
+
+```python config.py
+ZONAS   = ["GBA Norte", "GBA Sur", "Interior"]
+CANALES = ["Canal Tradicional", "Supermercadismo", "Mayorista", "HoReCa"]
+```
+
+Modify these lists to match your sales structure:
+
+```python
+# Example: Regional structure
+ZONAS = ["North", "South", "East", "West", "Central"]
+
+# Example: Different channels
+CANALES = ["Retail", "Wholesale", "E-commerce", "Direct"]
+```
+
+## Data Paths
+
+The data file location is configured automatically:
+
+```python config.py
+BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "data", "raw", "mock_data.xlsx")
+```
+
+To use a different data source:
+
+```python
+# Point to a different Excel file
+DATA_PATH = os.path.join(BASE_DIR, "data", "my_sales_data.xlsx")
+
+# Or use an absolute path
+DATA_PATH = "/path/to/external/data.xlsx"
+```
+
+## Number Formatting Functions
+
+The config includes formatting utilities used throughout the dashboard:
+
+### Currency Format
+
+```python config.py
+def fmt_moneda(valor: float) -> str:
+    """Ej: $1.284.500 (estilo argentino, sin decimales si >1000)"""
+```
+
+Returns Argentine-style currency with dots as thousand separators.
+
+### Percentage Format
+
+```python config.py
+def fmt_pct(valor: float, decimales: int = 1) -> str:
+    """Ej: 84.2%"""
+```
+
+Formats decimals (0.842) as percentages (84.2%).
+
+### Number Format
+
+```python config.py
+def fmt_numero(valor: float) -> str:
+    """Ej: 1.284 (separador de miles)"""
+```
+
+Formats numbers with thousand separators.
+
+### Delta Format
+
+```python config.py
+def fmt_delta(valor: float) -> str:
+    """Ej: ▲ +8.2% o ▼ -3.1%"""
+```
+
+Formats growth/decline with arrows: ▲ +8.2% or ▼ -3.1%
+
+<Warning>
+These formatting functions expect decimal values (e.g., 0.842 for 84.2%). Make sure your data is in the correct format.
+</Warning>
+
+## Plotly Theme
+
+Chart styling is controlled by the `PLOTLY_THEME` dictionary:
+
+```python config.py
+PLOTLY_THEME = {
+    "paper_bgcolor": COLORS["bg_card"],
+    "plot_bgcolor":  COLORS["bg_card"],
+    "font":          {"color": COLORS["text_primary"], "family": "Inter, sans-serif", "size": 12},
+    "margin":        dict(l=20, r=20, t=40, b=20),
+}
+```
+
+This theme is automatically applied to all Plotly charts through the `_apply_theme()` function in `components/charts.py`.
+
+### Customizing Chart Appearance
+
+To change chart margins:
+
+```python
+PLOTLY_THEME = {
+    # ...
+    "margin": dict(l=40, r=40, t=60, b=40),  # Larger margins
+}
+```
+
+To change chart font:
+
+```python
+PLOTLY_THEME = {
+    # ...
+    "font": {"color": COLORS["text_primary"], "family": "Roboto, sans-serif", "size": 14},
+}
+```
+
+## Period Presets
+
+The `get_periodos()` function defines date range presets for filters:
+
+```python config.py
+def get_periodos() -> dict:
+    hoy = date.today()
+    primer_dia_mes = hoy.replace(day=1)
+    ultimo_dia_mes_ant = primer_dia_mes - relativedelta(days=1)
+    primer_dia_mes_ant = ultimo_dia_mes_ant.replace(day=1)
+    return {
+        "Este mes":         (primer_dia_mes, hoy),
+        "Mes anterior":     (primer_dia_mes_ant, ultimo_dia_mes_ant),
+        "Último trimestre": (hoy - relativedelta(months=3), hoy),
+        "Este año":         (hoy.replace(month=1, day=1), hoy),
+        "Año anterior":     (date(hoy.year - 1, 1, 1), date(hoy.year - 1, 12, 31)),
+        "Personalizado":    None,
+    }
+```
+
+Add custom periods by modifying this function:
+
+```python
+return {
+    "Este mes": (primer_dia_mes, hoy),
+    "Últimos 7 días": (hoy - relativedelta(days=7), hoy),
+    "Últimas 2 semanas": (hoy - relativedelta(weeks=2), hoy),
+    # ... add more presets
+}
+```
+
+## Environment-Specific Configuration
+
+For production vs. development settings, consider using environment variables:
+
+```python config.py
+import os
+
+# Development vs Production
+IS_PRODUCTION = os.getenv("ENV") == "production"
+
+if IS_PRODUCTION:
+    DATA_PATH = "/var/data/production_sales.xlsx"
+else:
+    DATA_PATH = os.path.join(BASE_DIR, "data", "raw", "mock_data.xlsx")
+```
+
+Then set the environment variable:
+
+```bash
+export ENV=production
+streamlit run app.py
+```
+
+## Complete Configuration Example
+
+Here's an example of customizing multiple settings:
+
+```python config.py
+# Custom color scheme
+COLORS = {
+    "primary":        "#1E3A8A",
+    "primary_light":  "#3B82F6",
+    "accent":         "#10B981",
+    "success":        "#10B981",
+    "warning":        "#F59E0B",
+    "danger":         "#EF4444",
+    # ... rest of colors
+}
+
+# Stricter thresholds
+THRESHOLDS = {
+    "cumplimiento_ok":      1.00,
+    "cumplimiento_warning": 0.90,  # Require 90% for orange
+    "caida_critica":       -0.15,  # -15% triggers alert
+    "crecimiento_notable":  0.20,  # +20% to highlight
+    "pareto_acumulado":     0.80,
+    "pareto_B":             0.95,
+}
+
+# Your company info
+EMPRESA = {
+    "nombre":    "Your Company Name",
+    "periodo_inicio": date(2024, 1, 1),
+    "periodo_fin":    date(2024, 12, 31),
+}
+
+# Your sales structure
+ZONAS   = ["North", "South", "Central"]
+CANALES = ["Retail", "Wholesale", "Online"]
+```

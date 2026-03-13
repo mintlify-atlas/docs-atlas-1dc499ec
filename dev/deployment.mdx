@@ -1,0 +1,561 @@
+---
+title: Deployment
+description: Deploy Visor KPI Comercial to Streamlit Cloud and configure production environments
+icon: rocket
+---
+
+Visor KPI Comercial is designed for seamless deployment to **Streamlit Cloud**, with the live demo already running at [excel-to-kpi-dashboard.streamlit.app](https://excel-to-kpi-dashboard.streamlit.app/).
+
+## Live Demo
+
+<Card title="Visor KPI Comercial — Production" icon="globe" href="https://excel-to-kpi-dashboard.streamlit.app/">
+  Access the fully deployed sales intelligence dashboard
+</Card>
+
+<Info>
+The production deployment automatically updates when changes are pushed to the main branch of the GitHub repository.
+</Info>
+
+## Deployment Overview
+
+<Steps>
+  <Step title="Repository Setup">
+    Your application code must be in a GitHub repository with the following structure:
+    ```
+    excel-to-kpi-dashboard/
+    ├── visor_kpi/
+    │   ├── app.py              # Main entry point
+    │   ├── requirements.txt    # Python dependencies
+    │   ├── config.py
+    │   ├── pages/              # Multi-page views
+    │   ├── src/                # Business logic
+    │   ├── components/         # UI components
+    │   ├── assets/             # CSS and static files
+    │   └── data/
+    │       ├── mock/
+    │       │   └── generate_mock_data.py
+    │       └── raw/
+    │           └── mock_data.xlsx
+    ```
+  </Step>
+
+  <Step title="Connect to Streamlit Cloud">
+    1. Go to [share.streamlit.io](https://share.streamlit.io/)
+    2. Sign in with GitHub
+    3. Click **New app**
+    4. Select your repository: `ricardobing/excel-to-kpi-dashboard`
+    5. Set the main file path: `visor_kpi/app.py`
+    6. Choose Python version: **3.10** or higher
+  </Step>
+
+  <Step title="Configure Deployment Settings">
+    In the Streamlit Cloud dashboard:
+    
+    **Python Version**
+    - Select Python 3.10, 3.11, or 3.12
+    - Visor KPI requires Python 3.10+
+    
+    **Main File Path**
+    ```
+    visor_kpi/app.py
+    ```
+    
+    **Advanced Settings** (optional)
+    - Set memory allocation if needed (default is sufficient)
+    - Configure custom domain if you have one
+  </Step>
+
+  <Step title="Deploy Data Files">
+    The mock data file must be generated and committed to the repository:
+    
+    <CodeGroup>
+    ```bash Generate data locally
+    cd visor_kpi
+    python data/mock/generate_mock_data.py
+    ```
+    
+    ```bash Commit to repository
+    git add data/raw/mock_data.xlsx
+    git commit -m "Add generated mock data for deployment"
+    git push origin main
+    ```
+    </CodeGroup>
+    
+    <Warning>
+    The `mock_data.xlsx` file (\~2MB) must be in the repository for the deployed app to function. Git LFS is not required as the file is under GitHub's 100MB limit.
+    </Warning>
+  </Step>
+
+  <Step title="Launch Deployment">
+    Click **Deploy!** and Streamlit Cloud will:
+    - Clone your repository
+    - Install dependencies from `requirements.txt`
+    - Start the Streamlit server
+    - Provide a public URL: `https://[app-name].streamlit.app/`
+    
+    <Check>
+    Typical deployment time: **2-3 minutes**
+    </Check>
+  </Step>
+</Steps>
+
+## Requirements Configuration
+
+The `visor_kpi/requirements.txt` file specifies all Python dependencies:
+
+```txt requirements.txt
+streamlit>=1.32.0,<2.0
+pandas>=2.2.0,<3.0
+plotly>=5.19.0,<6.0
+openpyxl>=3.1.5
+numpy>=1.26.4,<2.0
+faker>=23.2.0
+pytest>=8.0.0
+xlsxwriter>=3.1.9
+python-dateutil>=2.9.0
+```
+
+<AccordionGroup>
+  <Accordion title="Core Dependencies" icon="layer-group">
+    **Streamlit 1.32+**
+    - Multi-page app framework
+    - Interactive widgets and session state
+    - Deployed apps use the same version locally and in production
+    
+    **Pandas 2.2+**
+    - Data manipulation and ETL pipeline
+    - Excel file parsing and transformation
+    - 30,000+ transaction processing
+    
+    **Plotly 5.19+**
+    - Interactive charts: line, bar, scatter, treemap
+    - Gauge charts for KPI displays
+    - Dark theme customization
+  </Accordion>
+
+  <Accordion title="Data Processing" icon="database">
+    **openpyxl 3.1.5+**
+    - Excel file reading and writing
+    - Required for `pandas.read_excel()` with `.xlsx` format
+    
+    **NumPy 1.26.4+**
+    - Numerical computations
+    - Statistical calculations for KPIs
+    - Array operations for Pareto analysis
+  </Accordion>
+
+  <Accordion title="Development Tools" icon="code">
+    **Faker 23.2+**
+    - Mock data generation with Argentine localization (`es_AR`)
+    - Creates realistic client names, addresses, dates
+    
+    **pytest 8.0+**
+    - Test suite execution (51 tests)
+    - Not required for production runtime, but included for completeness
+  </Accordion>
+</AccordionGroup>
+
+## Environment Configuration
+
+Visor KPI Comercial uses file-based configuration in `config.py` with no external environment variables required:
+
+```python config.py
+# Data file path (relative to app.py)
+BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "data", "raw", "mock_data.xlsx")
+
+# Business constants
+EMPRESA = {
+    "nombre": "Distribuidora Del Sur S.A.",
+    "periodo_inicio": date(2023, 1, 1),
+    "periodo_fin": date(2026, 3, 31),
+}
+
+# Performance thresholds
+THRESHOLDS = {
+    "cumplimiento_ok": 1.00,
+    "cumplimiento_warning": 0.80,
+    "caida_critica": -0.20,
+}
+```
+
+<Note>
+No secrets or API keys are required. All configuration is in code or in the local Excel file.
+</Note>
+
+## Streamlit Configuration
+
+Optional: Create `.streamlit/config.toml` for custom UI settings:
+
+```toml .streamlit/config.toml
+[theme]
+base = "dark"
+primaryColor = "#00C49F"
+backgroundColor = "#0F1923"
+secondaryBackgroundColor = "#1A2535"
+textColor = "#F0F4F8"
+
+[server]
+maxUploadSize = 50
+enableCORS = false
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+```
+
+<Warning>
+If you create this file, commit it to the repository so Streamlit Cloud uses it.
+</Warning>
+
+## Deployment Checklist
+
+Before deploying, verify:
+
+<Steps>
+  <Step title="Data File Present">
+    ```bash
+    ls -lh visor_kpi/data/raw/mock_data.xlsx
+    # Should show ~2MB file
+    ```
+  </Step>
+
+  <Step title="Dependencies Locked">
+    ```bash
+    cd visor_kpi
+    pip install -r requirements.txt
+    # Should complete without errors
+    ```
+  </Step>
+
+  <Step title="App Runs Locally">
+    ```bash
+    cd visor_kpi
+    streamlit run app.py
+    # Should open http://localhost:8501 without errors
+    ```
+  </Step>
+
+  <Step title="Tests Pass">
+    ```bash
+    cd visor_kpi
+    pytest tests/ -v
+    # All 51 tests should pass
+    ```
+  </Step>
+
+  <Step title="Git Status Clean">
+    ```bash
+    git status
+    # Ensure all changes are committed
+    ```
+  </Step>
+</Steps>
+
+## Post-Deployment Verification
+
+After deployment completes:
+
+<CardGroup cols={2}>
+  <Card title="Health Check" icon="heart-pulse">
+    - App loads without errors
+    - Main dashboard displays KPIs
+    - All pages are accessible from sidebar
+    - Charts render correctly
+  </Card>
+
+  <Card title="Data Validation" icon="database">
+    - Date range shows Jan 2023 - Mar 2026
+    - Total sales > $0
+    - 12 vendors displayed in rankings
+    - 180 clients in customer analysis
+  </Card>
+
+  <Card title="Interactivity" icon="hand-pointer">
+    - Date filters update charts
+    - Vendor selection works in individual view
+    - Alert center displays active alerts
+    - Export buttons generate files
+  </Card>
+
+  <Card title="Performance" icon="gauge-high">
+    - Initial load < 5 seconds
+    - Page navigation is instant
+    - Chart interactions are smooth
+    - No timeout errors
+  </Card>
+</CardGroup>
+
+## Updating the Deployment
+
+Streamlit Cloud auto-deploys on git push:
+
+```bash
+# Make changes locally
+cd visor_kpi
+# Edit files...
+
+# Test locally
+streamlit run app.py
+pytest tests/ -v
+
+# Commit and push
+git add .
+git commit -m "Update: add new KPI calculation"
+git push origin main
+
+# Streamlit Cloud detects the push and redeploys automatically
+```
+
+<Info>
+**Auto-Deployment Time**: Changes appear live in 2-3 minutes after pushing to GitHub.
+</Info>
+
+## Logs and Monitoring
+
+Access deployment logs in Streamlit Cloud:
+
+1. Go to [share.streamlit.io/](https://share.streamlit.io/)
+2. Click on your app
+3. View **Logs** tab
+
+Common log patterns:
+
+```log
+# Successful startup
+You can now view your Streamlit app in your browser.
+
+# Data loading
+Loading data from: /mount/src/.../data/raw/mock_data.xlsx
+
+# Warning: Missing dependencies
+ERROR: Could not find a version that satisfies the requirement...
+→ Fix: Update requirements.txt with correct version pins
+```
+
+## Alternative Deployment Options
+
+<CardGroup cols={2}>
+  <Card title="Docker" icon="docker" href="#docker-deployment">
+    Run in a containerized environment
+  </Card>
+
+  <Card title="Heroku" icon="cloud" href="#heroku-deployment">
+    Deploy using Heroku Buildpacks
+  </Card>
+
+  <Card title="AWS EC2" icon="aws" href="#aws-deployment">
+    Self-hosted on AWS infrastructure
+  </Card>
+
+  <Card title="Local Server" icon="server" href="#local-server">
+    Run on internal company network
+  </Card>
+</CardGroup>
+
+### Docker Deployment
+
+Create a `Dockerfile` in the project root:
+
+```dockerfile Dockerfile
+FROM python:3.10-slim
+
+WORKDIR /app
+
+COPY visor_kpi/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY visor_kpi/ .
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+```
+
+<CodeGroup>
+```bash Build image
+docker build -t visor-kpi-comercial .
+```
+
+```bash Run container
+docker run -p 8501:8501 visor-kpi-comercial
+```
+
+```bash Access app
+open http://localhost:8501
+```
+</CodeGroup>
+
+### Local Server Deployment
+
+For internal company use without internet access:
+
+<Steps>
+  <Step title="Install Python 3.10+">
+    On the server:
+    ```bash
+    python3 --version  # Should be 3.10 or higher
+    ```
+  </Step>
+
+  <Step title="Clone Repository">
+    ```bash
+    git clone https://github.com/ricardobing/excel-to-kpi-dashboard.git
+    cd excel-to-kpi-dashboard/visor_kpi
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    ```
+  </Step>
+
+  <Step title="Generate Data">
+    ```bash
+    python data/mock/generate_mock_data.py
+    ```
+  </Step>
+
+  <Step title="Run as Service">
+    Create a systemd service file `/etc/systemd/system/visor-kpi.service`:
+    ```ini
+    [Unit]
+    Description=Visor KPI Comercial
+    After=network.target
+    
+    [Service]
+    Type=simple
+    User=www-data
+    WorkingDirectory=/opt/visor-kpi
+    ExecStart=/opt/visor-kpi/.venv/bin/streamlit run app.py --server.port=8501
+    Restart=always
+    
+    [Install]
+    WantedBy=multi-user.target
+    ```
+    
+    Start the service:
+    ```bash
+    sudo systemctl enable visor-kpi
+    sudo systemctl start visor-kpi
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting Deployment
+
+<AccordionGroup>
+  <Accordion title="ModuleNotFoundError: No module named 'openpyxl'" icon="triangle-exclamation">
+    **Cause**: Missing dependency in `requirements.txt`
+    
+    **Solution**: Ensure `openpyxl>=3.1.5` is in `requirements.txt` and redeploy.
+  </Accordion>
+
+  <Accordion title="FileNotFoundError: mock_data.xlsx not found" icon="file-excel">
+    **Cause**: Data file not committed to repository
+    
+    **Solution**:
+    ```bash
+    cd visor_kpi
+    python data/mock/generate_mock_data.py
+    git add data/raw/mock_data.xlsx
+    git commit -m "Add mock data file"
+    git push origin main
+    ```
+  </Accordion>
+
+  <Accordion title="App is slow or times out" icon="hourglass">
+    **Causes**:
+    - Excel file too large (>5MB)
+    - Inefficient data loading
+    - Too many concurrent users
+    
+    **Solutions**:
+    - Use `@st.cache_data` decorator on data loading functions
+    - Optimize Pandas operations (avoid iterrows, use vectorization)
+    - Consider upgrading Streamlit Cloud tier for more resources
+  </Accordion>
+
+  <Accordion title="Charts not displaying" icon="chart-line">
+    **Cause**: Plotly version mismatch or theme issues
+    
+    **Solution**:
+    - Verify `plotly>=5.19.0` in requirements
+    - Check browser console for JavaScript errors
+    - Test in different browsers (Chrome, Firefox)
+  </Accordion>
+
+  <Accordion title="Page not found (404) for subpages" icon="map">
+    **Cause**: Streamlit multi-page structure incorrect
+    
+    **Solution**: Verify `pages/` directory structure:
+    ```
+    visor_kpi/
+    ├── app.py
+    └── pages/
+        ├── 1_gerencia.py
+        ├── 2_vendedores.py
+        ├── 3_clientes.py
+        ├── 4_productos.py
+        └── 5_alertas.py
+    ```
+    Page files must start with numbers for ordering.
+  </Accordion>
+</AccordionGroup>
+
+## Performance Optimization
+
+<CardGroup cols={2}>
+  <Card title="Caching Data" icon="database">
+    Use Streamlit's caching to avoid reloading Excel on every interaction:
+    ```python
+    @st.cache_data
+    def load_data():
+        return pd.read_excel(DATA_PATH, sheet_name=None)
+    ```
+  </Card>
+
+  <Card title="Lazy Loading" icon="forward">
+    Load only required sheets per page:
+    ```python
+    # Instead of loading all sheets at once
+    ventas = pd.read_excel(DATA_PATH, sheet_name="Ventas")
+    ```
+  </Card>
+
+  <Card title="Optimize DataFrames" icon="memory">
+    Reduce memory usage:
+    ```python
+    # Convert to appropriate dtypes
+    df["id_vendedor"] = df["id_vendedor"].astype("category")
+    df["fecha"] = pd.to_datetime(df["fecha"])
+    ```
+  </Card>
+
+  <Card title="Minimize Recomputation" icon="arrows-rotate">
+    Cache expensive calculations:
+    ```python
+    @st.cache_data
+    def calcular_pareto(df):
+        # Expensive Pareto analysis
+        return result
+    ```
+  </Card>
+</CardGroup>
+
+## Related Documentation
+
+<CardGroup cols={3}>
+  <Card title="Testing" icon="flask-vial" href="./testing">
+    Run the test suite before deployment
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="./troubleshooting">
+    Common deployment issues
+  </Card>
+  <Card title="Configuration" icon="gear" href="/dev/configuration">
+    Customize thresholds and settings
+  </Card>
+</CardGroup>

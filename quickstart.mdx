@@ -1,80 +1,164 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get Visor KPI Comercial running in less than 5 minutes
 ---
 
-## Get started in three steps
+Get your sales intelligence dashboard up and running in under 5 minutes. This guide walks you through cloning the repository, installing dependencies, generating mock data, and launching the application.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+- **Python 3.10 or higher** (3.10-3.12 recommended)
+- **Git** installed on your system
+- Basic familiarity with command line/terminal
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## Quick Start Steps
 
-### Step 2: Deploy your changes
+<Steps>
+  <Step title="Clone the repository">
+    Open your terminal and clone the project:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
+    ```bash
+    git clone https://github.com/ricardobing/excel-to-kpi-dashboard.git
+    cd excel-to-kpi-dashboard
+    ```
+  </Step>
+
+  <Step title="Create and activate virtual environment">
+    <CodeGroup>
+      ```bash Windows
+      python -m venv .venv
+      .venv\Scripts\activate
+      ```
+
+      ```bash macOS/Linux
+      python -m venv .venv
+      source .venv/bin/activate
+      ```
+    </CodeGroup>
+
+    <Note>
+      Virtual environments keep your project dependencies isolated from other Python projects on your system.
+    </Note>
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all required packages from the requirements file:
+
+    ```bash
+    pip install -r visor_kpi/requirements.txt
+    ```
+
+    This installs:
+    - **Streamlit** (1.32+) - Multi-page dashboard framework
+    - **Pandas** (2.2+) - Data processing and ETL
+    - **Plotly** (5.19+) - Interactive visualizations
+    - **openpyxl** (3.1.5+) - Excel file handling
+    - **Faker** (23.2+) - Mock data generation
+    - **pytest** (8.0+) - Testing suite
+  </Step>
+
+  <Step title="Generate mock data">
+    Navigate to the application directory and run the data generator:
+
+    ```bash
+    cd visor_kpi
+    python data/mock/generate_mock_data.py
+    ```
+
+    This creates `data/raw/mock_data.xlsx` with:
+    - **27 months** of historical data (Jan 2023 - Mar 2026)
+    - **12 salespeople** with differentiated performance profiles
+    - **180 clients** across 4 commercial channels
+    - **60 products** in 5 categories
+    - **~30,000 transactions** with realistic business patterns
+
+    <Note>
+      The script takes approximately 30 seconds to generate the full dataset.
+    </Note>
+  </Step>
+
+  <Step title="Launch the application">
+    Start the Streamlit dashboard:
+
+    ```bash
+    streamlit run app.py
+    ```
+
+    Your browser will automatically open to `http://localhost:8501` with the dashboard running.
+
+    <Note>
+      The dashboard loads in under 3 seconds with the complete dataset.
+    </Note>
+  </Step>
+</Steps>
+
+## What's Next?
+
+Once the application is running, you can:
+
+- **Explore the Executive Summary** - View overall business KPIs and rankings
+- **Access Manager View** - See consolidated team performance and trends
+- **Check Individual Salesperson Reports** - Each seller can view their own metrics
+- **Analyze Clients** - Review Pareto segmentation and identify at-risk accounts
+- **Review Products** - Understand product performance and identify low-rotation SKUs
+- **Monitor Alerts** - Access the alerts center for proactive business management
+
+## Live Demo
+
+Prefer to try it first? Check out the live demo:
+
+🔗 **[View Interactive Demo →](https://excel-to-kpi-dashboard.streamlit.app/)**
+
+## Testing the Application
+
+To verify everything is working correctly, run the test suite:
+
+```bash
+cd visor_kpi
+pytest tests/ -v
+```
+
+You should see **51 tests passing**, covering:
+- Mock dataset validation
+- KPI engine calculations
+- Pareto analysis logic
+- Alert engine rules (ALT001-ALT007)
+
+## Troubleshooting
+
+<Accordion title="Module not found errors">
+  If you see `ModuleNotFoundError`, ensure your virtual environment is activated and all dependencies are installed:
+
+  ```bash
+  pip install -r visor_kpi/requirements.txt
+  ```
 </Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Accordion title="Port already in use">
+  If port 8501 is already in use, specify a different port:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
+  ```bash
+  streamlit run app.py --server.port 8502
+  ```
 </Accordion>
 
-## Next steps
+<Accordion title="Mock data file not found">
+  Ensure you're in the `visor_kpi` directory when running the data generator:
 
-Now that you have your docs running, explore these key features:
+  ```bash
+  cd visor_kpi
+  python data/mock/generate_mock_data.py
+  ```
 
-<CardGroup cols={2}>
+  The file should be created at `visor_kpi/data/raw/mock_data.xlsx`.
+</Accordion>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+<Accordion title="Python version issues">
+  This project requires Python 3.10 or higher. Check your version:
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+  ```bash
+  python --version
+  ```
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+  If you have multiple Python versions installed, you may need to use `python3.10` or `python3.11` explicitly.
+</Accordion>

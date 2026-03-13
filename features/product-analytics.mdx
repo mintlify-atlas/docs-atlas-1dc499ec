@@ -1,0 +1,352 @@
+---
+title: Product Analytics
+description: Analyze product performance with treemaps, Pareto analysis, and inventory movement tracking
+icon: "box"
+---
+
+## Overview
+
+The Product Analytics view helps you understand which products drive revenue, identify slow-moving inventory, and optimize your product mix. Using visual treemaps and Pareto analysis, you can make data-driven decisions about pricing, promotions, and inventory.
+
+<Note>
+  This view answers: "Which products actually generate revenue, and which are sitting on shelves?"
+</Note>
+
+## Business Value
+
+<CardGroup cols={2}>
+  <Card title="Optimize Inventory" icon="warehouse">
+    Identify slow-moving SKUs to avoid overstock and free up capital
+  </Card>
+  <Card title="Focus Promotions" icon="badge-percent">
+    Prioritize marketing effort on high-margin, fast-moving products
+  </Card>
+  <Card title="Detect Trends" icon="chart-line">
+    Spot growing products early to capitalize on demand
+  </Card>
+  <Card title="Category Management" icon="layer-group">
+    Understand which product categories drive the business
+  </Card>
+</CardGroup>
+
+## Key Metrics
+
+The top KPI cards provide portfolio overview:
+
+### Active SKUs
+- Total number of products flagged as active in `productos_df`
+- Calculated as `prod_df[prod_df['activo'] == True]['id_producto'].nunique()`
+- Represents your current catalog size
+
+### Product Categories
+- Number of distinct categories in your portfolio
+- From `productos_df['categoria'].nunique()`
+- Examples: Beverages, Snacks, Dairy, Cleaning, etc.
+
+### Products Without Movement
+- SKUs with no sales in the last 60 days
+- Indicates potential dead inventory
+- Warning flag if count is high relative to total SKUs
+
+**Detection logic:**
+```python
+ultimo_venta = df.groupby('id_producto')['fecha'].max()
+corte_60 = fecha_hasta - timedelta(days=60)
+prod_sin_mov = prod_activos[
+    ~prod_activos.isin(ultimo_venta.index) | 
+    (ultimo_venta < corte_60)
+]
+```
+
+### Average Sales per SKU
+- Mean revenue per product: `total_sales / active_sku_count`
+- Helps benchmark individual product performance
+- Identifies if revenue is concentrated or distributed
+
+<Tip>
+  If 10-15% of SKUs have no movement in 60 days, that's normal. If it's >25%, you may have an inventory management issue.
+</Tip>
+
+## Product Treemap
+
+A visual hierarchy showing products sized by revenue:
+
+- **Rectangles:** Individual products
+- **Size:** Proportional to sales volume (larger = higher revenue)
+- **Color:** By category for quick identification
+- **Hierarchy:** Grouped by category > individual SKU
+
+The treemap makes it instantly obvious:
+- Which products dominate your sales
+- How categories compare to each other  
+- If any products are underperforming relative to space
+
+**Generated using** `chart_treemap_productos(kp, title="Productos por Categoría — Tamaño = Ventas")`
+
+<Note>
+  Hover over any rectangle to see exact sales figures, category, and percentage of total revenue.
+</Note>
+
+## Product Pareto Chart
+
+Visualizes the 80/20 principle in your product catalog:
+
+- **Blue bars:** Individual product revenue (sorted descending)
+- **Orange line:** Cumulative percentage
+- Shows top 30 products by default
+
+**Key insights from Pareto:**
+- How many products generate 80% of revenue?
+- Is your product mix healthy or concentrated?
+- Which specific SKUs are in the critical top tier?
+
+**Generated using** `chart_pareto(kp, titulo="Pareto de Productos", col_nombre="descripcion", col_valor="importe_total", top_n=30)`
+
+Typically, you'll see:
+- **A-category (top 20%):** Drive ~80% of revenue — protect availability at all costs
+- **B-category (next 30%):** Contribute ~15% — optimize inventory levels
+- **C-category (bottom 50%):** Represent ~5% — consider discontinuation or clearance
+
+## Category Filter
+
+Refine analysis by selecting specific product categories:
+
+- Multi-select dropdown with all available categories
+- Filters all charts and tables on the page
+- Useful for category managers focusing on specific segments
+
+Example use case: Filter to "Beverages" category to analyze drink product mix in isolation.
+
+## Complete Product Ranking Table
+
+A sortable table with all product details:
+
+| Column | Description |
+|--------|-------------|
+| **Product Name** | Full description from `productos_df` |
+| **Category** | Product category assignment |
+| **Total Sales** | Sum of `importe_neto` in period |
+| **Units Sold** | Total quantity if available in data |
+| **Avg. Price** | `total_sales / units_sold` |
+| **Pareto Cat.** | A / B / C classification |
+| **vs. Previous** | % change vs. equivalent prior period |
+| **Last Sale** | Days since most recent transaction |
+
+**Generated using** `render_ranking_productos(kp_filtrado, top_n=60)`
+
+Sort the table to identify:
+- **Top revenue generators** (sort by Total Sales ↓)
+- **Fastest growing** (sort by vs. Previous ↓)
+- **Stagnant products** (sort by Last Sale ↓)
+
+<Tip>
+  Export the table to Excel for deeper analysis or to share with category managers and buyers.
+</Tip>
+
+## Products Without Movement
+
+A dedicated section highlighting inventory concerns:
+
+### 60-Day No-Sale List
+
+Shows products with zero sales in the last 60 days:
+
+- Product name and category
+- Date of last sale
+- Days since last transaction
+- Inventory status (if available)
+- Suggested action
+
+**Why 60 days?** Most B2B distribution businesses expect products to move at least once per quarter. 60 days is a warning threshold before it becomes dead stock.
+
+### Recommended Actions
+
+<CardGroup cols={2}>
+  <Card title="Clearance Pricing" icon="tags">
+    Discount slow movers to free up capital and warehouse space
+  </Card>
+  <Card title="Bundle Promotions" icon="box-open">
+    Combine slow SKUs with fast movers to increase rotation
+  </Card>
+  <Card title="Review with Supplier" icon="handshake">
+    Negotiate return or exchange of dead inventory
+  </Card>
+  <Card title="Discontinue" icon="ban">
+    Remove from catalog if no demand after promotion attempts
+  </Card>
+</CardGroup>
+
+<Warning>
+  Products without movement tie up capital and warehouse space. Every SKU on the no-movement list represents money that could be invested in fast movers.
+</Warning>
+
+## High-Growth Products
+
+Identifies products with momentum:
+
+### Growth Criteria
+
+Products shown in this section have:
+- **Sales increase >10%** vs. previous period: `vs_periodo_anterior > 0.10`
+- **Significant volume** (not just one-off sales)
+- **Upward trend** over multiple months
+
+### Growth Product List
+
+Displays promising SKUs with:
+- Product name and category
+- Current period sales
+- Growth percentage (e.g., "+45%")
+- Suggested actions (e.g., "Increase inventory", "Expand to more channels")
+
+<Tip>
+  High-growth products are your best opportunity to gain market share. Ensure you maintain inventory availability and consider promotional support.
+</Tip>
+
+## Category Performance Comparison
+
+If your data includes multiple categories, a comparison view shows:
+
+- **Sales by category:** Total revenue per category
+- **Growth rates:** Which categories are expanding vs. contracting
+- **SKU count:** Number of active products in each category
+- **Average SKU sales:** Revenue per product in each category
+
+Helps answer:
+- Which categories drive the business?
+- Are we over-invested in low-performing categories?
+- Where should new product development focus?
+
+## Product Detail View
+
+Click any product to see individual analysis:
+
+### Product Profile
+- Full name and category
+- Total sales in period
+- Pareto category and ranking position
+- Days since last sale
+
+### 6-Month Sales Trend
+
+Monthly sales evolution for this specific product:
+- Line chart showing purchase pattern
+- Identifies seasonality (e.g., ice cream peaks in summer)
+- Detects concerning downward trends
+
+### Top Customers for This Product
+
+Who's buying this product the most:
+- Customer name
+- Quantity purchased
+- Percentage of product's total sales
+
+Useful for:
+- Understanding product's customer base
+- Identifying cross-sell opportunities
+- Assessing risk if concentrated with one customer
+
+## How to Use This View
+
+### Monthly Inventory Review
+1. **Check no-movement list** — Plan clearance or discontinuation
+2. **Review growth products** — Ensure adequate inventory levels
+3. **Analyze Pareto** — Confirm A-category products are well-stocked
+
+### Category Management
+1. **Filter by category** — Focus on your assigned categories
+2. **Compare to budget** — Are sales targets being met?
+3. **Identify gaps** — Which sub-categories are underrepresented?
+
+### Promotion Planning
+1. **Find high-growth products** — Amplify with marketing support
+2. **Identify slow movers** — Plan discount campaigns
+3. **Check treemap** — Visualize what deserves shelf space
+
+### Buyer Negotiations
+1. **Show no-movement data** — Negotiate returns with suppliers
+2. **Present growth products** — Request better pricing/terms
+3. **Use Pareto** — Justify discontinuing C-category SKUs
+
+## KPI Calculation Details
+
+**Product KPIs** calculated by `kpi_productos(df, df_ant)`:
+
+```python
+# Aggregate by product
+kp = df.groupby('id_producto').agg({
+    'importe_neto': 'sum',
+    'cantidad': 'sum',  # if quantity field exists
+    'fecha': 'count',   # transaction frequency
+    'fecha': 'max'      # last sale date
+}).reset_index()
+
+# Join with product master data
+kp = kp.merge(
+    productos_df[['id_producto', 'descripcion', 'categoria', 'activo']],
+    on='id_producto',
+    how='left'
+)
+
+# Calculate derived metrics
+kp['ticket_promedio'] = kp['importe_total'] / kp['transacciones']
+kp['dias_sin_venta'] = (fecha_hasta - kp['fecha_ultima_venta']).dt.days
+
+# Assign Pareto categories
+kp_sorted = kp.sort_values('importe_total', ascending=False)
+kp_sorted['pct_acumulado'] = (
+    kp_sorted['importe_total'].cumsum() / kp_sorted['importe_total'].sum()
+)
+kp_sorted['categoria_pareto'] = kp_sorted['pct_acumulado'].apply(
+    lambda x: 'A' if x <= 0.80 else 'B' if x <= 0.95 else 'C'
+)
+
+# Compare vs previous period
+kp_ant = df_ant.groupby('id_producto')['importe_neto'].sum()
+kp['vs_periodo_anterior'] = (
+    (kp['importe_total'] - kp_ant) / kp_ant
+).fillna(0)
+```
+
+## Advanced Analysis
+
+### Product Affinity
+
+If you want to see which products are frequently purchased together:
+
+1. Filter to a specific customer segment
+2. Export the transaction data  
+3. Use market basket analysis tools to identify bundles
+
+### Price Elasticity
+
+Track how product sales respond to price changes:
+
+1. Note the date of price adjustments
+2. Use the evolution chart to see volume impact
+3. Calculate elasticity: `% change in volume / % change in price`
+
+### Seasonal Patterns
+
+Use the 6-month evolution to identify:
+- **Recurring peaks:** Stock up before seasonal demand
+- **Predictable lows:** Reduce inventory during slow periods
+- **Anomalies:** Investigate unexpected spikes or drops
+
+<Note>
+  For advanced analytics like affinity analysis and forecasting, consider exporting the data to specialized tools or building custom analysis in the system.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Customer Analysis" icon="users" href="/features/customer-analysis">
+    See which customers are buying these products
+  </Card>
+  <Card title="Sales Team Tracking" icon="user-tie" href="/features/sales-team-tracking">
+    Review product mix by individual salesperson
+  </Card>
+  <Card title="Alerts Center" icon="bell" href="/features/alerts-center">
+    Check alerts for products with declining sales
+  </Card>
+</CardGroup>

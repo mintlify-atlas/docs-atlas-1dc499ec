@@ -1,0 +1,541 @@
+---
+title: Project Structure
+description: Complete directory tree and file-by-file documentation
+icon: 'folder-tree'
+---
+
+## Directory Tree
+
+```
+visor_kpi/
+├── app.py                      # Main entry point (Executive Dashboard)
+├── config.py                   # Global configuration, colors, formatters
+├── requirements.txt            # Python dependencies
+│
+├── assets/
+│   └── style.css              # Global CSS overrides for Streamlit
+│
+├── components/                # Reusable UI components
+│   ├── __init__.py
+│   ├── charts.py              # Plotly chart factories (11 chart types)
+│   ├── filters.py             # Sidebar filter panel with session state
+│   ├── kpi_card.py            # Metric card component
+│   └── rankings.py            # Table rankings for sellers/clients/products
+│
+├── data/
+│   ├── mock/
+│   │   └── generate_mock_data.py  # Synthetic data generator (Faker)
+│   └── raw/
+│       └── mock_data.xlsx         # Excel workbook with 5 sheets
+│
+├── pages/                     # Streamlit multi-page views
+│   ├── 1_gerencia.py          # Management dashboard (full team view)
+│   ├── 2_vendedores.py        # Seller performance details
+│   ├── 3_clientes.py          # Customer analysis & Pareto
+│   ├── 4_productos.py         # Product intelligence
+│   └── 5_alertas.py           # Alert center with filtering
+│
+├── src/                       # Core business logic
+│   ├── __init__.py
+│   ├── alerts_engine.py       # 7 business rule evaluations
+│   ├── data_loader.py         # Excel ingestion, caching, filtering
+│   ├── kpi_engine.py          # KPI calculation engine (9 metric families)
+│   ├── pareto.py              # 80/20 analysis & Gini coefficient
+│   └── reports.py             # Export utilities (PDF, Excel)
+│
+└── tests/                     # Unit tests
+    ├── __init__.py
+    ├── test_alerts.py         # Alert rule validation
+    ├── test_kpis.py           # KPI calculation correctness
+    └── test_mock_data.py      # Data generator validation
+```
+
+---
+
+## Root Files
+
+### `app.py` — Main Entry Point
+
+**Purpose:** Executive summary dashboard (default landing page)  
+**Lines:** 312  
+**Responsibilities:**
+- Configures Streamlit page settings (`st.set_page_config`)
+- Loads global CSS from `assets/style.css`
+- Renders sidebar filters via `components.filters`
+- Displays 4 primary KPI cards: Sales, Team Compliance, Margin, Coverage
+- Shows evolution chart, gauge, top-3 rankings, and active alerts
+- Generates automated executive insight text
+
+**Key sections:**
+```python
+# Line 16-21: Page config (MUST be first st. call)
+st.set_page_config(
+    page_title="Visor KPI Comercial",
+    page_icon="📊",
+    layout="wide",
+)
+
+# Line 69-80: Data loading with error handling
+data       = load_data()
+df         = get_filtered_data(fecha_desde, fecha_hasta, ...)
+df_ant     = get_filtered_data_periodo_anterior(...)
+
+# Line 107-114: KPI calculations
+kv    = kpi_ventas_periodo(df, df_ant, objetivos_df, ...)
+km    = kpi_margen(df, df_ant)
+kc    = kpi_cobertura_clientes(df, clientes_df, df_ant)
+alertas = get_alertas_activas(...)
+```
+
+### `config.py` — Configuration Hub
+
+**Purpose:** Centralize constants, colors, thresholds, formatters  
+**Lines:** 203  
+**Exports:**
+- `COLORS` dict (19 color definitions for dark theme)
+- `THRESHOLDS` dict (performance benchmarks)
+- `ZONAS`, `CANALES` lists (business domain constants)
+- `DATA_PATH` (path to Excel workbook)
+- `fmt_moneda()`, `fmt_pct()`, `fmt_delta()` formatters
+- `get_color_semaforo()`, `get_label_semaforo()` traffic light logic
+- `PLOTLY_THEME` dict for consistent chart styling
+
+**Example usage:**
+```python
+from config import fmt_moneda, COLORS, THRESHOLDS
+
+price_str = fmt_moneda(1284500)  # → "$1.284.500"
+green = COLORS["success"]        # → "#00C49F"
+threshold = THRESHOLDS["cumplimiento_ok"]  # → 1.00
+```
+
+### `requirements.txt` — Dependencies
+
+**Purpose:** Pin Python package versions  
+**Lines:** 10  
+**Critical dependencies:**
+```
+streamlit>=1.32.0,<2.0       # Web framework
+pandas>=2.2.0,<3.0           # Data manipulation
+plotly>=5.19.0,<6.0          # Interactive charts
+openpyxl>=3.1.5              # Excel I/O
+numpy>=1.26.4,<2.0           # Numerical computing
+faker>=23.2.0                # Mock data generation
+pytest>=8.0.0                # Testing
+```
+
+---
+
+## `assets/` — Styling
+
+### `style.css`
+
+**Purpose:** Override default Streamlit styles for brand consistency  
+**Customizations:**
+- Dark theme colors (`#0F1923` background)
+- Custom card styles with border-left accents
+- Alert boxes with severity-based coloring
+- Typography (font sizing, weights, letter-spacing)
+- Plotly chart container styling
+
+**Applied in:** Every page via `st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)`
+
+---
+
+## `components/` — UI Layer
+
+### `charts.py` (487 lines)
+
+**Purpose:** Plotly chart factories with consistent theming  
+**Exports 11 chart types:**
+
+| Function | Chart Type | Use Case |
+|----------|------------|----------|
+| `chart_evolucion_ventas()` | Line + area | Monthly sales vs target |
+| `chart_barras_vendedores()` | Horizontal bar | Seller compliance ranking |
+| `chart_pareto()` | Bar + line (dual-axis) | 80/20 customer/product analysis |
+| `chart_heatmap_ventas()` | Heatmap | Activity by day-of-week × week-of-month |
+| `chart_scatter_clientes()` | Scatter | Frequency vs revenue (RFM) |
+| `chart_treemap_productos()` | Treemap | Category × product breakdown |
+| `chart_gauge_cumplimiento()` | Gauge (semi-circle) | Team compliance meter |
+| `chart_donut_canales()` | Donut | Channel distribution |
+
+**Design pattern:**
+```python
+def chart_nombre(df: pd.DataFrame, title: str = "") -> go.Figure:
+    fig = go.Figure()
+    # ... build traces
+    return _apply_theme(fig, title)  # Applies PLOTLY_THEME
+```
+
+**Reference:** `components/charts.py:50-487`
+
+### `filters.py` (214 lines)
+
+**Purpose:** Sidebar filter panel with session state persistence  
+**Key functions:**
+- `init_session_state()`: Initialize filter defaults (lines 16-33)
+- `render_sidebar_filters()`: Render sidebar UI and return selected values (lines 36-213)
+
+**Filter types:**
+1. **Period selector:** Pre-defined ranges (This month, Last month, Q1, etc.) + custom dates
+2. **Zone filter:** Multi-select from `ZONAS` list
+3. **Seller filter:** Multi-select (dynamically loaded from data)
+4. **Channel filter:** Multi-select from `CANALES` list
+
+**Returns:**
+```python
+{
+    "fecha_desde": date,
+    "fecha_hasta": date,
+    "vendedores_sel": [str],  # List of seller IDs
+    "zonas_sel": [str],
+    "canales_sel": [str],
+    "periodo_sel": str,
+}
+```
+
+**Reference:** `components/filters.py:36-213`
+
+### `kpi_card.py` (119 lines)
+
+**Purpose:** Reusable metric card component  
+**Main function:**
+```python
+render_kpi_card(
+    label: str,              # Metric name (uppercase)
+    value: str,              # Formatted main value
+    delta_pct: float | None, # Change vs previous period
+    objetivo: str | None,    # Target value (for progress bar)
+    cumplimiento: float | None,  # 0-1 completion ratio
+    icon: str = "",         # Emoji icon
+)
+```
+
+**Visual features:**
+- Left border colored by semaphore (green/amber/red)
+- Large primary value (26px font)
+- Delta with arrow and color (▲ green, ▼ red)
+- Progress bar vs objective
+- Hover states
+
+**Reference:** `components/kpi_card.py:12-70`
+
+### `rankings.py`
+
+**Purpose:** Tabular rankings with styling  
+**Functions:**
+- `render_ranking_vendedores(df)`: Seller leaderboard with arrows
+- `render_ranking_clientes(df)`: Top customer list
+- `render_ranking_productos(df)`: Best-selling products
+
+**Features:**
+- Rank change indicators (↑↓)
+- Color-coded performance (semaphore)
+- Responsive columns
+
+---
+
+## `data/` — Data Layer
+
+### `mock/generate_mock_data.py`
+
+**Purpose:** Generate realistic synthetic sales data using Faker  
+**Generates 5 Excel sheets:**
+1. **Ventas** (Sales transactions): 15,000+ rows, 2023-01 to 2026-03
+2. **Vendedores** (Sellers): 12 sellers across 3 zones
+3. **Clientes** (Customers): 150 B2B clients across 4 channels
+4. **Productos** (Products): 80 products in 6 categories
+5. **Objetivos** (Targets): Monthly sales targets per seller
+
+**Run:**
+```bash
+python data/mock/generate_mock_data.py
+```
+
+**Output:** `data/raw/mock_data.xlsx`
+
+### `raw/mock_data.xlsx`
+
+**Purpose:** Excel workbook consumed by `data_loader.py`  
+**Sheet structure:**
+- **Ventas:** `id_venta, fecha, id_vendedor, id_cliente, id_producto, cantidad, importe_bruto, descuento_pct, importe_neto`
+- **Vendedores:** `id_vendedor, nombre_completo, zona, perfil, activo, objetivo_mensual_base, antiguedad_años`
+- **Clientes:** `id_cliente, razon_social, canal, zona, id_vendedor_asignado, fecha_alta, activo, objetivo_mensual_cliente`
+- **Productos:** `id_producto, descripcion, categoria, precio_unitario, costo_unitario, activo`
+- **Objetivos:** `id_vendedor, año, mes, periodo, objetivo`
+
+---
+
+## `pages/` — Multi-Page Views
+
+Streamlit's multi-page structure: `pages/N_nombre.py` creates navigation automatically.
+
+### `1_gerencia.py` (115 lines)
+
+**Role:** Management / executive team view  
+**Features:**
+- Full seller ranking (all 12 sellers)
+- Zone-level aggregations
+- Team evolution chart (13 months)
+- Horizontal bar chart (compliance by seller)
+- Activity heatmap (day × week)
+
+**Target user:** Sales managers, directors
+
+### `2_vendedores.py`
+
+**Role:** Individual seller performance  
+**Features:**
+- Seller-specific KPI cards
+- Client portfolio table
+- Monthly trend vs target
+- Top clients for that seller
+- Visit frequency analysis
+
+**Target user:** Salespeople, field managers
+
+### `3_clientes.py`
+
+**Role:** Customer intelligence  
+**Features:**
+- Pareto chart (80/20 rule)
+- Scatter plot (frequency × revenue)
+- Churn risk flags
+- Category A/B/C breakdown
+- Client detail tables
+
+**Target user:** Account managers, marketing
+
+### `4_productos.py`
+
+**Role:** Product performance  
+**Features:**
+- Treemap by category
+- Slow-mover alerts
+- Best/worst performers
+- Category-level metrics
+- Stock velocity indicators
+
+**Target user:** Product managers, buyers
+
+### `5_alertas.py`
+
+**Role:** Alert center  
+**Features:**
+- Filterable alert list (severity, entity type)
+- Alert detail cards
+- Action tracking (mark as reviewed)
+- Alert count summary
+- Drill-down to affected entities
+
+**Target user:** Operations, managers
+
+---
+
+## `src/` — Business Logic
+
+### `data_loader.py` (204 lines)
+
+**Purpose:** Data ingestion, caching, and filtering  
+**Key functions:**
+
+| Function | Returns | Caching | Purpose |
+|----------|---------|---------|----------|
+| `load_data()` | `dict[str, pd.DataFrame]` | ✅ 1 hour | Load Excel sheets |
+| `get_master_df()` | `pd.DataFrame` | ✅ 1 hour | Denormalized join of all tables |
+| `get_filtered_data()` | `pd.DataFrame` | ❌ | Apply user filters |
+| `get_filtered_data_periodo_anterior()` | `pd.DataFrame` | ❌ | Prior period equivalent |
+| `check_data_available()` | `bool` | ❌ | Verify Excel exists |
+
+**Design pattern:**
+```python
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_data() -> dict[str, pd.DataFrame]:
+    xl = pd.ExcelFile(DATA_PATH)
+    ventas = xl.parse("Ventas")
+    # ... parse, type-cast, add derived columns
+    return {"ventas": ventas, "vendedores": ..., ...}
+```
+
+**Reference:** `src/data_loader.py:24-204`
+
+### `kpi_engine.py` (449 lines)
+
+**Purpose:** Core KPI calculation engine  
+**9 metric families:**
+
+| Function | Returns | Lines | Metrics |
+|----------|---------|-------|----------|
+| `kpi_ventas_periodo()` | `dict` | 20-66 | Total sales, delta, compliance, transactions, avg ticket |
+| `kpi_margen()` | `dict` | 68-92 | Gross margin, margin %, delta |
+| `kpi_cobertura_clientes()` | `dict` | 95-135 | Active clients, coverage %, churn, new clients |
+| `kpi_por_vendedor()` | `pd.DataFrame` | 142-211 | Per-seller KPIs with semaphore and ranking |
+| `kpi_productos()` | `pd.DataFrame` | 218-256 | Product metrics with Pareto classification |
+| `kpi_clientes()` | `pd.DataFrame` | 263-320 | Customer RFM, churn risk, Pareto |
+| `kpi_evolucion_mensual()` | `pd.DataFrame` | 327-365 | Time series by month with targets |
+| `generar_insight_ejecutivo()` | `str` | 372-407 | Auto-generated summary text |
+
+**Design pattern:**
+```python
+def kpi_ventas_periodo(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+    objetivos_df: pd.DataFrame | None = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+) -> dict:
+    # Pure calculation—no I/O or side effects
+    importe_total = float(df["importe_neto"].sum())
+    # ... more calculations
+    return {"importe_total": importe_total, ...}
+```
+
+**Reference:** `src/kpi_engine.py:20-449`
+
+### `alerts_engine.py` (362 lines)
+
+**Purpose:** Business rule evaluation for anomaly detection  
+**7 alert rules:**
+
+| ID | Name | Severity | Condition |
+|----|------|----------|------------|
+| ALT001 | Seller critical underperformance | High | Compliance < 65% in last 30 days |
+| ALT002 | Client churn risk | Medium | Active client, no purchase in 45 days |
+| ALT003 | Category A client drop | High | Top client with >25% revenue drop |
+| ALT004 | Product stagnation | Low | Active product, no sales in 60 days |
+| ALT005 | Seller inactivity | Medium | No transactions in 7 business days |
+| ALT006 | Growth opportunity | Info | Category B client with >30% growth |
+| ALT007 | Team near target | Info | Compliance >85% with 5+ days left in month |
+
+**Main function:**
+```python
+get_alertas_activas(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None,
+    clientes_df: pd.DataFrame,
+    productos_df: pd.DataFrame,
+    objetivos_df: pd.DataFrame | None = None,
+    fecha_hasta: date | None = None,
+) -> pd.DataFrame
+```
+
+**Returns:** DataFrame with columns: `id_alerta`, `nombre`, `severidad`, `entidad_tipo`, `entidad_id`, `entidad_nombre`, `valor_actual`, `valor_referencia`, `descripcion_detalle`, `fecha_deteccion`, `accion_sugerida`
+
+**Reference:** `src/alerts_engine.py:14-362`
+
+### `pareto.py` (107 lines)
+
+**Purpose:** 80/20 analysis and customer segmentation  
+**Functions:**
+
+1. **`calcular_pareto(df, columna_valor, columna_id)`** (lines 11-54)
+   - Adds columns: `participacion_pct`, `acumulado_pct`, `categoria_pareto`
+   - Categories: A (0-80%), B (80-95%), C (95-100%)
+
+2. **`get_concentracion_pareto(df, columna_valor)`** (lines 57-93)
+   - Returns concentration metrics: % entities in A, % revenue in A, Gini coefficient
+
+**Usage example:**
+```python
+clientes_df = kpi_clientes(df, clientes_master, df_ant)
+# calcular_pareto() already called inside kpi_clientes()
+cat_A = clientes_df[clientes_df["categoria_pareto"] == "A"]
+```
+
+**Reference:** `src/pareto.py:11-107`
+
+### `reports.py`
+
+**Purpose:** Export functionality (PDF/Excel reports)  
+**Note:** Implementation details depend on business requirements (not fully specified in source)
+
+---
+
+## `tests/` — Unit Tests
+
+### `test_kpis.py`
+
+**Purpose:** Validate KPI calculation correctness  
+**Tests:**
+- KPI output structure
+- Edge cases (empty DataFrames)
+- Calculation accuracy
+- Delta computation
+
+### `test_alerts.py`
+
+**Purpose:** Validate alert rule triggering  
+**Tests:**
+- Rule condition evaluation
+- Severity assignment
+- Alert deduplication
+
+### `test_mock_data.py`
+
+**Purpose:** Validate mock data generator  
+**Tests:**
+- Schema compliance
+- Data type correctness
+- Referential integrity (foreign keys)
+
+**Run tests:**
+```bash
+pytest tests/ -v
+```
+
+---
+
+## Key Patterns
+
+### 1. **Separation of Concerns**
+
+```python
+# ✅ GOOD: Business logic in src/, UI in components/
+kpi = kpi_ventas_periodo(df, df_ant)  # src/kpi_engine.py
+render_kpi_card("Ventas", fmt_moneda(kpi["importe_total"]))  # components/kpi_card.py
+
+# ❌ BAD: Mixing calculation and presentation
+def render_sales_card(df):
+    total = df["importe_neto"].sum()  # DON'T calculate in UI component
+    st.metric("Ventas", total)
+```
+
+### 2. **Caching Pattern**
+
+```python
+# Heavy I/O operations get cached
+@st.cache_data(ttl=3600)
+def load_data():
+    return pd.ExcelFile(DATA_PATH).parse(...)
+
+# Fast filters do NOT get cached (to reflect user input)
+def get_filtered_data(fecha_desde, fecha_hasta, ...):
+    return get_master_df()[mask]  # Uses cached master DF
+```
+
+### 3. **Error Handling**
+
+```python
+# Graceful degradation with empty DataFrames
+if df.empty:
+    return pd.DataFrame()  # or return default dict
+
+# User-friendly error messages
+if not check_data_available():
+    st.error("⚠️ No data file. Run: python data/mock/generate_mock_data.py")
+    st.stop()
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="sitemap" href="/dev/architecture-overview">
+    Understand the layered architecture and data flow
+  </Card>
+  <Card title="Tech Stack" icon="layer-group" href="/dev/tech-stack">
+    Explore dependencies and technology decisions
+  </Card>
+</CardGroup>

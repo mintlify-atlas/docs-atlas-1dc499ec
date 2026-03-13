@@ -1,0 +1,349 @@
+---
+title: Testing
+description: Test suite and quality assurance for Visor KPI Comercial
+icon: flask-vial
+---
+
+Visor KPI Comercial includes a comprehensive test suite with **51 passing tests** covering the entire data pipeline, KPI engine, and alert system.
+
+## Test Suite Overview
+
+The project uses **pytest** as the testing framework, with tests organized into three main modules:
+
+| Test Module | Coverage | Tests |
+|-------------|----------|-------|
+| `test_mock_data.py` | Dataset validation and integrity | 18 tests |
+| `test_kpis.py` | KPI calculations and Pareto analysis | 22 tests |
+| `test_alerts.py` | Alert engine and business rules | 11 tests |
+
+## Running Tests
+
+<CodeGroup>
+```bash Full test suite
+cd visor_kpi
+pytest tests/ -v
+```
+
+```bash Specific test file
+pytest tests/test_kpis.py -v
+```
+
+```bash With coverage report
+pytest tests/ --cov=src --cov-report=html
+```
+
+```bash Run specific test
+pytest tests/test_alerts.py::test_alt001_se_dispara_con_bajo_cumplimiento -v
+```
+</CodeGroup>
+
+<Check>
+**All 51 tests pass** on the latest version of the codebase.
+</Check>
+
+## Test Coverage
+
+### Dataset Validation (`test_mock_data.py`)
+
+Validates the integrity and coherence of the mock sales dataset:
+
+<AccordionGroup>
+  <Accordion title="Structure Tests" icon="table">
+    - **Excel sheet validation**: Verifies all required sheets exist (Ventas, Vendedores, Clientes, Productos, Objetivos)
+    - **Entity counts**: Validates 12 sellers, 180 clients, 60 products
+    - **Transaction volume**: Ensures between 8,000-40,000 sales records
+    - **Column presence**: Checks all required columns exist in each sheet
+  </Accordion>
+
+  <Accordion title="Data Quality Tests" icon="check-circle">
+    - **No critical nulls**: Validates that required fields like `id_venta`, `fecha`, `importe_neto` have no missing values
+    - **Positive amounts**: Ensures all `importe_neto` values are positive
+    - **Date ranges**: Verifies all dates fall between Jan 2023 and Mar 2026
+    - **Active/inactive ratio**: Checks ~85% clients active, ~15% inactive
+  </Accordion>
+
+  <Accordion title="Business Logic Tests" icon="briefcase">
+    - **Vendor-client coherence**: >96% of sales are from the assigned vendor to the client
+    - **Seasonality**: December and January show >15% higher sales than average
+    - **Inactive clients**: Clients marked inactive have no sales in the last 60 days
+    - **Low-rotation products**: At least 10 products represent less than 5% of cumulative volume
+  </Accordion>
+</AccordionGroup>
+
+### KPI Engine Tests (`test_kpis.py`)
+
+Validates all calculations in the KPI engine and Pareto analysis:
+
+#### Pareto Analysis Tests
+
+```python test_pareto_suma_100
+# Validates that participation percentages sum to 100%
+result = calcular_pareto(grouped_data, "importe_neto", "id_producto")
+assert abs(result["participacion_pct"].sum() - 1.0) < 0.01
+```
+
+<CardGroup cols={2}>
+  <Card title="Pareto Classification" icon="chart-pie">
+    - Category A covers 70-90% of volume
+    - Categories are only A, B, or C
+    - Cumulative percentage is monotonically increasing
+    - No null values in classification
+  </Card>
+
+  <Card title="Sales Period KPIs" icon="chart-line">
+    - Returns expected fields: `importe_total`, `transacciones_count`, `clientes_unicos`
+    - All values are non-negative
+    - Empty DataFrame returns zeros
+    - Delta calculations work correctly
+  </Card>
+
+  <Card title="Margin Calculations" icon="percent">
+    - Margin structure validated: `margen_bruto_total`, `margen_pct_promedio`
+    - Average margin between 0-100%
+    - Handles missing margin column gracefully
+  </Card>
+
+  <Card title="Client Coverage" icon="users">
+    - Coverage percentage between 0-1
+    - 100% coverage when all active clients purchased
+    - Correct count of unique active clients
+  </Card>
+</CardGroup>
+
+#### Vendor Performance Tests
+
+```python test_kpi_por_vendedor_columnas_minimas
+# Validates vendor KPI structure
+result = kpi_por_vendedor(ventas_df, objetivos_df)
+assert "id_vendedor" in result.columns
+assert "importe_total" in result.columns
+assert "cumplimiento_pct" in result.columns
+```
+
+Tests verify:
+- Returns non-empty DataFrame
+- Contains essential columns: `id_vendedor`, `importe_total`, `transacciones`
+- `cumplimiento_pct` is non-negative (can exceed 1 for over-achievement)
+- Rankings are unique and consecutive starting from 1
+
+### Alert Engine Tests (`test_alerts.py`)
+
+Validates the 7 alert rules (ALT001-ALT007) that detect critical business conditions:
+
+<Steps>
+  <Step title="Schema Validation">
+    Verifies the alert DataFrame structure:
+    - Returns DataFrame type
+    - Contains all required columns: `id_alerta`, `nombre`, `severidad`, `entidad_tipo`, `entidad_id`, `descripcion_detalle`, `accion_sugerida`
+    - Handles empty DataFrame without crashing
+  </Step>
+
+  <Step title="Data Integrity">
+    - Severity values are only: `alta`, `media`, `baja`, `info`
+    - All alert IDs start with `ALT`
+    - No duplicate alerts for same entity
+  </Step>
+
+  <Step title="Alert Logic">
+    Tests each alert rule:
+    
+    **ALT001 - Low Performance Vendor**
+    ```python
+    # Triggers when vendor has less than 65% goal achievement
+    # Test: 20% achievement → alert fires
+    # Test: 80% achievement → no alert
+    ```
+    
+    **ALT002 - Client at Risk**
+    ```python
+    # Triggers when active client hasn't purchased in 45+ days
+    # Test: Last purchase 60 days ago → alert fires
+    # Test: Last purchase 5 days ago → no alert
+    ```
+    
+    **ALT004 - Product Without Movement**
+    ```python
+    # Triggers when active product has no sales in 60+ days
+    # Test: Last sale 70 days ago → alert fires
+    # Test: Last sale 10 days ago → no alert
+    ```
+    
+    **ALT006 - Growth Opportunity**
+    ```python
+    # Triggers for category-B clients with >30% growth
+    # Validates it evaluates without errors
+    ```
+  </Step>
+
+  <Step title="Integration Test">
+    Runs complete alert detection with real Excel data:
+    - Loads all sheets from `mock_data.xlsx`
+    - Processes vendors, clients, products, and objectives
+    - Returns valid alert DataFrame
+    - Prints summary of detected alerts by severity
+  </Step>
+</Steps>
+
+## Test Data Generation
+
+Tests use the mock dataset generated by:
+
+```bash
+cd visor_kpi
+python data/mock/generate_mock_data.py
+```
+
+This creates `data/raw/mock_data.xlsx` with:
+- **27 months** of historical data (Jan 2023 - Mar 2026)
+- **~30,000 transactions** with realistic patterns
+- **12 vendors** with different performance profiles (star, stable, problematic)
+- **180 clients** across 4 commercial channels
+- **60 products** in 5 categories
+
+<Info>
+If the data file is missing, tests will automatically skip with a message:
+```
+Archivo de datos no encontrado: data/raw/mock_data.xlsx
+Ejecutá: python data/mock/generate_mock_data.py
+```
+</Info>
+
+## Writing New Tests
+
+### Test Structure
+
+All test files follow this pattern:
+
+```python
+import os
+import sys
+import pytest
+import pandas as pd
+
+# Setup path to import project modules
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, BASE_DIR)
+
+from config import DATA_PATH
+from src.kpi_engine import kpi_ventas_periodo
+
+@pytest.fixture(scope="module")
+def data():
+    """Loads Excel once for all tests."""
+    if not os.path.exists(DATA_PATH):
+        pytest.skip("Data file not found")
+    xl = pd.ExcelFile(DATA_PATH)
+    return {
+        "ventas": xl.parse("Ventas"),
+        "clientes": xl.parse("Clientes"),
+    }
+
+def test_sales_positive(data):
+    """Validates all sales amounts are positive."""
+    assert (data["ventas"]["importe_neto"] > 0).all()
+```
+
+### Helper Functions
+
+Tests include helper functions to generate minimal test DataFrames:
+
+```python
+def make_simple_df(n: int = 500, seed: int = 42) -> pd.DataFrame:
+    """Creates minimal sales DataFrame for unit tests."""
+    np.random.seed(seed)
+    return pd.DataFrame({
+        "id_venta": [f"T{i:04d}" for i in range(n)],
+        "fecha": pd.date_range("2024-01-01", periods=n, freq="6h"),
+        "id_vendedor": np.random.choice(["V001", "V002", "V003"], n),
+        "importe_neto": np.random.uniform(5_000, 200_000, n),
+    })
+```
+
+## Continuous Integration
+
+While no CI/CD is currently configured, tests can be integrated with GitHub Actions:
+
+```yaml .github/workflows/tests.yml
+name: Run Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: pip install -r visor_kpi/requirements.txt
+      - run: cd visor_kpi && python data/mock/generate_mock_data.py
+      - run: cd visor_kpi && pytest tests/ -v
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Isolated Tests" icon="cube">
+    Each test is independent and can run in any order. Use fixtures for shared data setup.
+  </Card>
+
+  <Card title="Clear Assertions" icon="check">
+    Test names describe what they validate. Assertion messages show expected vs actual values.
+  </Card>
+
+  <Card title="Business Logic Focus" icon="briefcase">
+    Tests validate business rules (Pareto 80/20, vendor coherence) not just technical correctness.
+  </Card>
+
+  <Card title="Real Data Integration" icon="database">
+    Integration tests run against the full mock dataset to catch edge cases.
+  </Card>
+</CardGroup>
+
+## Troubleshooting Tests
+
+<AccordionGroup>
+  <Accordion title="ImportError: No module named 'src'" icon="triangle-exclamation">
+    **Solution**: Run tests from the `visor_kpi/` directory:
+    ```bash
+    cd visor_kpi
+    pytest tests/ -v
+    ```
+  </Accordion>
+
+  <Accordion title="Tests skipped: Data file not found" icon="file-excel">
+    **Solution**: Generate the mock dataset first:
+    ```bash
+    cd visor_kpi
+    python data/mock/generate_mock_data.py
+    ```
+  </Accordion>
+
+  <Accordion title="ValueError: cannot convert float NaN to integer" icon="calculator">
+    **Solution**: Check for missing data in the Excel. Tests expect complete datasets. Regenerate mock data if corrupted.
+  </Accordion>
+
+  <Accordion title="Test failed: Expected 51 tests, got different count" icon="list-check">
+    **Solution**: Ensure you're running from the correct directory and have the latest code:
+    ```bash
+    git pull origin main
+    cd visor_kpi
+    pytest tests/ --collect-only  # See test count
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Documentation
+
+<CardGroup cols={3}>
+  <Card title="Deployment" icon="rocket" href="./deployment">
+    Deploy to Streamlit Cloud
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="./troubleshooting">
+    Common issues and solutions
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/dev/architecture-overview">
+    System architecture overview
+  </Card>
+</CardGroup>

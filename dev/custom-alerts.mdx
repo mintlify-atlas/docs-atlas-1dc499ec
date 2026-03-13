@@ -1,0 +1,521 @@
+---
+title: Custom Alerts
+description: Configure and extend the intelligent alert system
+---
+
+The alert engine in `src/alerts_engine.py` monitors sales performance and automatically generates actionable alerts. The system evaluates 7 predefined rules and can be extended with custom rules.
+
+## Understanding the Alert System
+
+Alerts are defined as rules with these properties:
+
+- **id**: Unique identifier (e.g., "ALT001")
+- **nombre**: Human-readable name
+- **condicion**: Description of when the alert triggers
+- **severidad**: `"alta"`, `"media"`, `"baja"`, or `"info"`
+- **entidad_tipo**: `"vendedor"`, `"cliente"`, `"producto"`, or `"equipo"`
+- **accion_sugerida**: Recommended action to take
+
+## Built-in Alert Rules
+
+The system includes 7 predefined rules:
+
+```python src/alerts_engine.py
+ALERT_RULES = [
+    {
+        "id":              "ALT001",
+        "nombre":          "Vendedor bajo rendimiento crítico",
+        "condicion":       "cumplimiento_pct < 0.65 en los últimos 30 días",
+        "severidad":       "alta",
+        "entidad_tipo":    "vendedor",
+        "accion_sugerida": "Revisar cartera y objetivos con supervisor",
+    },
+    {
+        "id":              "ALT002",
+        "nombre":          "Cliente sin compras (riesgo de pérdida)",
+        "condicion":       "cliente activo sin compras en los últimos 45 días",
+        "severidad":       "media",
+        "entidad_tipo":    "cliente",
+        "accion_sugerida": "Contacto de recuperación urgente",
+    },
+    {
+        "id":              "ALT003",
+        "nombre":          "Caída de venta en cliente relevante",
+        "condicion":       "cliente categoría A con caída >25% vs mes anterior",
+        "severidad":       "alta",
+        "entidad_tipo":    "cliente",
+        "accion_sugerida": "Visita de cuenta clave",
+    },
+    {
+        "id":              "ALT004",
+        "nombre":          "Producto sin movimiento",
+        "condicion":       "producto activo sin ventas en 60 días",
+        "severidad":       "baja",
+        "entidad_tipo":    "producto",
+        "accion_sugerida": "Revisar disponibilidad y push comercial",
+    },
+    {
+        "id":              "ALT005",
+        "nombre":          "Vendedor sin actividad reciente",
+        "condicion":       "vendedor sin transacciones en los últimos 7 días hábiles",
+        "severidad":       "media",
+        "entidad_tipo":    "vendedor",
+        "accion_sugerida": "Verificar actividad de campo",
+    },
+    {
+        "id":              "ALT006",
+        "nombre":          "Oportunidad: cliente B en crecimiento",
+        "condicion":       "cliente categoría B con crecimiento >30% vs mes anterior",
+        "severidad":       "info",
+        "entidad_tipo":    "cliente",
+        "accion_sugerida": "Potencial para upgrade a categoría A — aumentar frecuencia de visita",
+    },
+    {
+        "id":              "ALT007",
+        "nombre":          "Equipo cerca del objetivo mensual",
+        "condicion":       "cumplimiento general >85% y quedan más de 5 días hábiles",
+        "severidad":       "info",
+        "entidad_tipo":    "equipo",
+        "accion_sugerida": "Push final para cerrar mes en verde",
+    },
+]
+```
+
+### Alert Severity Levels
+
+| Severity | Use Case | Color | Example |
+|----------|----------|-------|-------|
+| `alta` | Critical issues requiring immediate attention | Red | Salesperson below 65% of target |
+| `media` | Important issues that need action soon | Orange | Customer hasn't ordered in 45 days |
+| `baja` | Minor issues to monitor | Blue | Product with no sales in 60 days |
+| `info` | Opportunities or positive insights | Green | Category B customer growing 30%+ |
+
+## How Alerts Are Generated
+
+The `get_alertas_activas()` function evaluates all rules and returns active alerts:
+
+```python src/alerts_engine.py
+def get_alertas_activas(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None,
+    clientes_df: pd.DataFrame,
+    productos_df: pd.DataFrame,
+    objetivos_df: pd.DataFrame | None = None,
+    fecha_hasta: date | None = None,
+) -> pd.DataFrame:
+    """
+    Evalúa todas las reglas y retorna DataFrame de alertas activas.
+
+    Columns:
+        id_alerta, nombre, severidad, entidad_tipo,
+        entidad_id, entidad_nombre, valor_actual, valor_referencia,
+        descripcion_detalle, fecha_deteccion, accion_sugerida
+    """
+```
+
+### Alert DataFrame Structure
+
+Each alert returns these columns:
+
+- **id_alerta**: Rule ID (e.g., "ALT001")
+- **nombre**: Alert name
+- **severidad**: Severity level
+- **entidad_tipo**: Entity type (vendedor/cliente/producto/equipo)
+- **entidad_id**: Specific entity ID
+- **entidad_nombre**: Entity name for display
+- **valor_actual**: Current value that triggered the alert
+- **valor_referencia**: Threshold/reference value
+- **descripcion_detalle**: Detailed description with numbers
+- **fecha_deteccion**: Date alert was detected
+- **accion_sugerida**: Recommended action
+
+## Adding a Custom Alert Rule
+
+Let's add a new alert for detecting margin erosion.
+
+<Steps>
+  <Step title="Add the rule definition">
+    Open `src/alerts_engine.py` and add your rule to the `ALERT_RULES` list:
+    
+    ```python src/alerts_engine.py
+    ALERT_RULES = [
+        # ... existing rules ...
+        {
+            "id":              "ALT008",
+            "nombre":          "Erosión de margen en categoría",
+            "condicion":       "categoría con margen <15% (umbral normal: 20%)",
+            "severidad":       "media",
+            "entidad_tipo":    "categoria",
+            "accion_sugerida": "Revisar pricing y costos de la categoría",
+        },
+    ]
+    ```
+  </Step>
+  
+  <Step title="Implement the evaluation logic">
+    Add the evaluation logic in the `get_alertas_activas()` function, after the existing rules:
+    
+    ```python src/alerts_engine.py
+    def get_alertas_activas(...):
+        alertas = []
+        hoy = fecha_hasta or date.today()
+        ts_hoy = pd.Timestamp(hoy)
+        
+        # ... existing rule evaluations ...
+        
+        # ── ALT008: Erosión de margen ──────────────────────────
+        if not df.empty and "margen_neto" in df.columns and "categoria" in df.columns:
+            # Calcular margen % por categoría
+            margen_cat = df.groupby("categoria").agg(
+                margen_total = ("margen_neto", "sum"),
+                importe_total = ("importe_neto", "sum"),
+            ).reset_index()
+            
+            margen_cat["margen_pct"] = margen_cat.apply(
+                lambda r: r["margen_total"] / r["importe_total"] if r["importe_total"] > 0 else 0,
+                axis=1
+            )
+            
+            # Umbral de margen mínimo
+            MARGEN_MINIMO = 0.15  # 15%
+            
+            for _, row in margen_cat.iterrows():
+                if row["margen_pct"] < MARGEN_MINIMO:
+                    alertas.append(_crear_alerta(
+                        regla       = ALERT_RULES[7],  # Index of ALT008
+                        entidad_id  = row["categoria"],
+                        entidad_nom = row["categoria"],
+                        val_actual  = row["margen_pct"],
+                        val_ref     = MARGEN_MINIMO,
+                        detalle     = f"Margen actual: {row['margen_pct']*100:.1f}% (mínimo esperado: 15%)",
+                        fecha       = hoy,
+                    ))
+        
+        # ... rest of function ...
+    ```
+  </Step>
+  
+  <Step title="Test the alert">
+    Run your dashboard and navigate to the alerts view to see the new alert in action.
+  </Step>
+</Steps>
+
+## Alert Evaluation Pattern
+
+Most alert rules follow this pattern:
+
+```python
+# 1. Calculate the metric being monitored
+metric_value = calculate_metric(df)
+
+# 2. Define the threshold
+THRESHOLD = 0.75
+
+# 3. Check condition and create alert if triggered
+if metric_value < THRESHOLD:
+    alertas.append(_crear_alerta(
+        regla       = ALERT_RULES[n],
+        entidad_id  = entity_id,
+        entidad_nom = entity_name,
+        val_actual  = metric_value,
+        val_ref     = THRESHOLD,
+        detalle     = f"Detailed description with {metric_value}",
+        fecha       = hoy,
+    ))
+```
+
+## Example: Volume Drop Alert
+
+Here's a complete example of adding a volume drop alert:
+
+```python src/alerts_engine.py
+# 1. Add rule definition
+ALERT_RULES.append({
+    "id":              "ALT009",
+    "nombre":          "Caída de volumen en zona",
+    "condicion":       "zona con caída >30% en unidades vendidas vs mes anterior",
+    "severidad":       "alta",
+    "entidad_tipo":    "zona",
+    "accion_sugerida": "Análisis de cobertura y actividad comercial en la zona",
+})
+
+# 2. Add evaluation logic in get_alertas_activas()
+def get_alertas_activas(...):
+    # ... other alerts ...
+    
+    # ── ALT009: Caída de volumen por zona ──────────────────
+    if df_anterior is not None and not df_anterior.empty and "zona" in df.columns:
+        # Unidades vendidas por zona - período actual
+        vol_actual = df.groupby("zona")["cantidad"].sum().rename("vol_actual")
+        
+        # Unidades vendidas por zona - período anterior
+        vol_anterior = df_anterior.groupby("zona")["cantidad"].sum().rename("vol_anterior")
+        
+        # Merge y calcular variación
+        vol_comp = pd.DataFrame({
+            "vol_actual": vol_actual,
+            "vol_anterior": vol_anterior,
+        }).fillna(0)
+        
+        CAIDA_CRITICA = -0.30  # -30%
+        
+        for zona, row in vol_comp.iterrows():
+            if row["vol_anterior"] > 0:
+                variacion = (row["vol_actual"] - row["vol_anterior"]) / row["vol_anterior"]
+                
+                if variacion < CAIDA_CRITICA:
+                    alertas.append(_crear_alerta(
+                        regla       = ALERT_RULES[8],  # ALT009
+                        entidad_id  = zona,
+                        entidad_nom = zona,
+                        val_actual  = variacion,
+                        val_ref     = CAIDA_CRITICA,
+                        detalle     = (
+                            f"Caída: {variacion*100:.1f}% "
+                            f"({int(row['vol_anterior'])} → {int(row['vol_actual'])} unidades)"
+                        ),
+                        fecha       = hoy,
+                    ))
+```
+
+## Alert Thresholds Configuration
+
+For easier maintenance, consider moving thresholds to `config.py`:
+
+```python config.py
+# Add to THRESHOLDS dictionary
+THRESHOLDS = {
+    # ... existing thresholds ...
+    
+    # Alert thresholds
+    "alert_vendedor_bajo":      0.65,   # 65% cumplimiento
+    "alert_cliente_sin_compra": 45,     # días
+    "alert_producto_sin_venta": 60,     # días
+    "alert_caida_cliente_a":    -0.25,  # -25%
+    "alert_crecimiento_opp":    0.30,   # +30%
+    "alert_margen_minimo":      0.15,   # 15%
+}
+```
+
+Then use them in your alert rules:
+
+```python src/alerts_engine.py
+from config import THRESHOLDS
+
+def get_alertas_activas(...):
+    # ...
+    if cumpl < THRESHOLDS["alert_vendedor_bajo"]:
+        # trigger alert
+```
+
+## Using Helper Functions
+
+The alert engine includes helper functions for common operations:
+
+### _crear_alerta()
+
+Creates a standardized alert dictionary:
+
+```python src/alerts_engine.py
+def _crear_alerta(
+    regla: dict,
+    entidad_id: str,
+    entidad_nom: str,
+    val_actual: float,
+    val_ref: float,
+    detalle: str,
+    fecha: date,
+) -> dict:
+    return {
+        "id_alerta":          regla["id"],
+        "nombre":             regla["nombre"],
+        "severidad":          regla["severidad"],
+        "entidad_tipo":       regla["entidad_tipo"],
+        "entidad_id":         entidad_id,
+        "entidad_nombre":     entidad_nom,
+        "valor_actual":       val_actual,
+        "valor_referencia":   val_ref,
+        "descripcion_detalle": detalle,
+        "fecha_deteccion":    fecha,
+        "accion_sugerida":    regla["accion_sugerida"],
+    }
+```
+
+### _retroceder_dias_habiles()
+
+Calculates a date N business days ago:
+
+```python src/alerts_engine.py
+def _retroceder_dias_habiles(hoy: date, n: int) -> date:
+    """Retrocede n días hábiles desde hoy."""
+    d = hoy
+    count = 0
+    while count < n:
+        d -= timedelta(days=1)
+        if d.weekday() < 5:  # Lun-Vie
+            count += 1
+    return d
+```
+
+Use it for business-day-based alerts:
+
+```python
+dias_habiles_7 = _retroceder_dias_habiles(hoy, 7)
+if ultima_venta < dias_habiles_7:
+    # trigger alert
+```
+
+### _dias_habiles_restantes_mes()
+
+Calculates remaining business days in the month:
+
+```python src/alerts_engine.py
+def _dias_habiles_restantes_mes(hoy: date) -> int:
+    """Días hábiles que quedan en el mes actual."""
+    from calendar import monthrange
+    ultimo_dia = monthrange(hoy.year, hoy.month)[1]
+    count = 0
+    for d in range(hoy.day + 1, ultimo_dia + 1):
+        if date(hoy.year, hoy.month, d).weekday() < 5:
+            count += 1
+    return count
+```
+
+## Alert Display in UI
+
+To display alerts in your Streamlit page:
+
+```python pages/alertas.py
+import streamlit as st
+from src.alerts_engine import get_alertas_activas
+from config import COLORS
+
+# Get alerts
+alertas_df = get_alertas_activas(
+    df=df_ventas,
+    df_anterior=df_anterior,
+    clientes_df=clientes_df,
+    productos_df=productos_df,
+    objetivos_df=objetivos_df,
+    fecha_hasta=fecha_hasta,
+)
+
+# Display by severity
+for severidad in ["alta", "media", "baja", "info"]:
+    alertas_sev = alertas_df[alertas_df["severidad"] == severidad]
+    
+    if not alertas_sev.empty:
+        st.subheader(f"Alertas {severidad.upper()} ({len(alertas_sev)})")
+        
+        for _, alerta in alertas_sev.iterrows():
+            st.markdown(f"""
+            <div class="alert-card {severidad}">
+                <div class="alert-title">{alerta['nombre']}</div>
+                <div class="alert-detail">
+                    {alerta['entidad_nombre']}: {alerta['descripcion_detalle']}
+                </div>
+                <div class="alert-action">💡 {alerta['accion_sugerida']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+```
+
+## Alert Filtering and Prioritization
+
+Create filters to help users focus on relevant alerts:
+
+```python
+# Filter by entity type
+entidad_filter = st.selectbox(
+    "Tipo de entidad",
+    ["Todas", "vendedor", "cliente", "producto", "equipo"]
+)
+
+if entidad_filter != "Todas":
+    alertas_df = alertas_df[alertas_df["entidad_tipo"] == entidad_filter]
+
+# Filter by severity
+severidad_filter = st.multiselect(
+    "Severidad",
+    ["alta", "media", "baja", "info"],
+    default=["alta", "media"]
+)
+
+alertas_df = alertas_df[alertas_df["severidad"].isin(severidad_filter)]
+
+# Display count
+st.metric("Alertas activas", len(alertas_df))
+```
+
+## Advanced: Time-Based Alerts
+
+For alerts that trigger at specific times:
+
+```python src/alerts_engine.py
+from datetime import datetime
+
+def get_alertas_activas(...):
+    # ...
+    
+    # ── Alert: Fin de mes próximo ─────────────────────────────
+    from calendar import monthrange
+    ultimo_dia = monthrange(hoy.year, hoy.month)[1]
+    dias_restantes = (date(hoy.year, hoy.month, ultimo_dia) - hoy).days
+    
+    if dias_restantes <= 5 and dias_restantes > 0:
+        # Check overall team performance
+        if cumplimiento_general < 0.90:
+            alertas.append(_crear_alerta(
+                regla       = {...},  # Custom rule
+                entidad_id  = "EQUIPO",
+                entidad_nom = "Equipo Comercial",
+                val_actual  = cumplimiento_general,
+                val_ref     = 0.90,
+                detalle     = f"Quedan {dias_restantes} días y el cumplimiento es {cumplimiento_general*100:.1f}%",
+                fecha       = hoy,
+            ))
+```
+
+<Tip>
+Use the `fecha_deteccion` field to implement alert deduplication or persistence across dashboard refreshes by storing alerts in a database.
+</Tip>
+
+## Testing Alert Rules
+
+Create test scenarios to verify your alert logic:
+
+```python test_alerts.py
+import pandas as pd
+from datetime import date, timedelta
+from src.alerts_engine import get_alertas_activas
+
+# Create test data that should trigger ALT001
+test_ventas = pd.DataFrame({
+    "fecha": [date.today() - timedelta(days=i) for i in range(30)],
+    "id_vendedor": ["V001"] * 30,
+    "importe_neto": [100] * 30,  # Low sales
+    "id_venta": [f"VT{i}" for i in range(30)],
+    "id_cliente": [f"C{i}" for i in range(30)],
+})
+
+test_objetivos = pd.DataFrame({
+    "periodo": [date.today()],
+    "id_vendedor": ["V001"],
+    "objetivo": [5000],  # High target
+})
+
+test_clientes = pd.DataFrame({"id_cliente": [], "activo": []})
+test_productos = pd.DataFrame({"id_producto": [], "activo": []})
+
+# Run alert engine
+alertas = get_alertas_activas(
+    df=test_ventas,
+    df_anterior=None,
+    clientes_df=test_clientes,
+    productos_df=test_productos,
+    objetivos_df=test_objetivos,
+)
+
+# Verify ALT001 was triggered
+assert len(alertas[alertas["id_alerta"] == "ALT001"]) > 0, "ALT001 should trigger"
+print("✓ Alert test passed")
+```

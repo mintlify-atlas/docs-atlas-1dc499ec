@@ -1,0 +1,569 @@
+---
+title: Tech Stack
+description: Dependencies, versions, and technology choices for Visor KPI Comercial
+icon: 'layer-group'
+---
+
+## Technology Overview
+
+Visor KPI Comercial is built as a **Python-based web application** using Streamlit for the UI framework and Pandas for data processing. The stack prioritizes:
+
+- **Rapid development:** Streamlit enables full dashboards with minimal boilerplate
+- **Data science tooling:** Pandas/NumPy for vectorized analytics
+- **Rich visualizations:** Plotly for interactive charts
+- **No database required:** Excel as data source for simplicity
+- **Easy deployment:** Single Python process, no separate frontend build
+
+<CardGroup cols={3}>
+  <Card title="Web Framework" icon="window">
+    Streamlit 1.32+
+  </Card>
+  <Card title="Data Processing" icon="table">
+    Pandas 2.2+ • NumPy 1.26+
+  </Card>
+  <Card title="Visualization" icon="chart-line">
+    Plotly 5.19+
+  </Card>
+</CardGroup>
+
+---
+
+## Core Dependencies
+
+### Streamlit (1.32.0 - 1.x)
+
+**Purpose:** Web application framework  
+**Why chosen:**
+- Zero frontend code required (no React/Vue/JavaScript)
+- Built-in widgets (sliders, selects, date pickers)
+- Automatic reactivity model
+- Native caching decorators (`@st.cache_data`)
+- Multi-page app support
+
+**Version constraints:** `>=1.32.0,<2.0`  
+- Requires 1.32+ for stable multi-page navigation
+- Pinned to 1.x to avoid breaking changes in 2.0
+
+**Key features used:**
+```python
+st.set_page_config(layout="wide")  # Wide layout for dashboards
+st.sidebar                         # Filter panel
+st.columns([1,2,1])               # Responsive grid
+st.plotly_chart()                 # Plotly integration
+@st.cache_data(ttl=3600)          # 1-hour cache
+st.session_state                  # Cross-page state
+```
+
+**Reference:** [Streamlit docs](https://docs.streamlit.io)
+
+### Pandas (2.2.0 - 2.x)
+
+**Purpose:** Data manipulation and analysis  
+**Why chosen:**
+- Industry standard for tabular data in Python
+- Vectorized operations for performance
+- Rich API for grouping, pivoting, merging
+- Excel I/O via `openpyxl` engine
+- Native datetime handling
+
+**Version constraints:** `>=2.2.0,<3.0`  
+- Requires 2.2+ for improved `pd.ExcelFile` performance
+- Pinned to 2.x for stable API
+
+**Key operations:**
+```python
+df = pd.ExcelFile("data.xlsx").parse("Sheet1")
+df["fecha"] = pd.to_datetime(df["fecha"])
+grp = df.groupby("vendedor")["ventas"].sum()
+df_joined = ventas.merge(clientes, on="id_cliente")
+```
+
+**Used in:** `src/data_loader.py`, `src/kpi_engine.py`, `src/alerts_engine.py`
+
+### Plotly (5.19.0 - 5.x)
+
+**Purpose:** Interactive charting library  
+**Why chosen:**
+- High-quality interactive charts (hover, zoom, pan)
+- Wide chart type library (scatter, heatmap, treemap, gauge, etc.)
+- Themeable with JSON config
+- Client-side rendering (no server load)
+- Mobile-responsive
+
+**Version constraints:** `>=5.19.0,<6.0`  
+- Requires 5.19+ for compatibility with dict-based axis titles
+- Pinned to 5.x to avoid API changes
+
+**Chart types used:**
+- `go.Scatter` (line/area charts)
+- `go.Bar` (horizontal/vertical bars)
+- `go.Pie` (donut charts)
+- `go.Indicator` (gauges)
+- `go.Heatmap` (activity heatmaps)
+- `px.treemap` (hierarchical product view)
+
+**Theme configuration:**
+```python
+PLOTLY_THEME = {
+    "paper_bgcolor": "#1A2535",
+    "plot_bgcolor": "#1A2535",
+    "font": {"color": "#F0F4F8", "family": "Inter, sans-serif"},
+}
+```
+
+**Used in:** `components/charts.py` (all 11 chart factories)
+
+### openpyxl (3.1.5+)
+
+**Purpose:** Excel file reading/writing  
+**Why chosen:**
+- Pure Python (no external dependencies)
+- Supports `.xlsx` format (modern Excel)
+- Works as Pandas backend (`pd.ExcelFile(..., engine='openpyxl')`)
+
+**Version constraints:** `>=3.1.5` (latest stable)
+
+**Usage:**
+```python
+xl = pd.ExcelFile(DATA_PATH, engine="openpyxl")
+ventas = xl.parse("Ventas")  # Read sheet by name
+```
+
+**Used in:** `src/data_loader.py:35`
+
+### NumPy (1.26.4 - 1.x)
+
+**Purpose:** Numerical computing  
+**Why chosen:**
+- Pandas dependency (required anyway)
+- Fast array operations for Pareto/Gini calculations
+- Math functions (`np.argmax`, `np.sort`, `np.arange`)
+
+**Version constraints:** `>=1.26.4,<2.0`  
+- Requires 1.26+ for Pandas 2.2 compatibility
+- Pinned to 1.x to avoid NumPy 2.0 breaking changes
+
+**Used in:** `src/pareto.py:96-106` (Gini coefficient), `components/charts.py:95-104` (chart annotations)
+
+---
+
+## Development Dependencies
+
+### Faker (23.2.0+)
+
+**Purpose:** Synthetic data generation  
+**Why chosen:**
+- Generates realistic names, companies, addresses
+- Locale support (Spanish Argentina for company names)
+- Repeatable with seed for consistent test data
+
+**Version constraints:** `>=23.2.0` (latest)
+
+**Usage:**
+```python
+from faker import Faker
+fake = Faker(["es_AR", "es_ES"])
+company = fake.company()          # "Distribuidora Del Norte S.A."
+name = fake.name()                # "Juan Carlos Pérez"
+date = fake.date_between("-2y")  # Random date in last 2 years
+```
+
+**Used in:** `data/mock/generate_mock_data.py`
+
+**Not needed for production:** Can be excluded from production requirements if using real data.
+
+### pytest (8.0.0+)
+
+**Purpose:** Unit testing framework  
+**Why chosen:**
+- Pythonic test syntax (no boilerplate classes)
+- Rich assertion introspection
+- Fixture system for test data
+- Plugin ecosystem
+
+**Version constraints:** `>=8.0.0` (latest major version)
+
+**Run tests:**
+```bash
+pytest tests/ -v
+pytest tests/test_kpis.py::test_ventas_periodo -v
+```
+
+**Used in:** `tests/test_kpis.py`, `tests/test_alerts.py`, `tests/test_mock_data.py`
+
+### xlsxwriter (3.1.9+)
+
+**Purpose:** Excel export (write-only)  
+**Why chosen:**
+- Fast Excel writing
+- Rich formatting (colors, borders, formulas)
+- Charts in Excel files
+
+**Version constraints:** `>=3.1.9`
+
+**Note:** Currently used by `generate_mock_data.py` for creating `mock_data.xlsx`. Could also be used in `src/reports.py` for exporting dashboards to Excel.
+
+**Potential usage:**
+```python
+writer = pd.ExcelWriter("report.xlsx", engine="xlsxwriter")
+df.to_excel(writer, sheet_name="Ventas", index=False)
+workbook = writer.book
+format = workbook.add_format({"bg_color": "#00C49F"})
+```
+
+### python-dateutil (2.9.0+)
+
+**Purpose:** Advanced date arithmetic  
+**Why chosen:**
+- `relativedelta` for month/year offsets (better than timedelta)
+- Timezone handling
+- Date parsing
+
+**Version constraints:** `>=2.9.0`
+
+**Usage:**
+```python
+from dateutil.relativedelta import relativedelta
+
+# Get previous month
+mes_anterior = fecha - relativedelta(months=1)
+
+# Get same period last year
+año_anterior = fecha - relativedelta(years=1)
+```
+
+**Used in:** `config.py:173-193` (period calculations), `components/filters.py:9`
+
+---
+
+## Full Requirements Breakdown
+
+| Package | Version | Size | Purpose | Used In |
+|---------|---------|------|---------|----------|
+| **streamlit** | 1.32.0 - 1.x | ~15 MB | Web framework | All `.py` files |
+| **pandas** | 2.2.0 - 2.x | ~40 MB | Data manipulation | `src/`, `components/` |
+| **plotly** | 5.19.0 - 5.x | ~30 MB | Charting | `components/charts.py` |
+| **openpyxl** | 3.1.5+ | ~2 MB | Excel I/O | `src/data_loader.py` |
+| **numpy** | 1.26.4 - 1.x | ~15 MB | Numerical computing | `src/pareto.py`, `components/charts.py` |
+| **faker** | 23.2.0+ | ~5 MB | Mock data | `data/mock/generate_mock_data.py` |
+| **pytest** | 8.0.0+ | ~3 MB | Testing | `tests/` |
+| **xlsxwriter** | 3.1.9+ | ~1 MB | Excel export | `data/mock/`, `src/reports.py` |
+| **python-dateutil** | 2.9.0+ | ~500 KB | Date arithmetic | `config.py`, `components/filters.py` |
+
+**Total install size:** ~110 MB (with dependencies)
+
+---
+
+## Why These Technologies?
+
+### Why Streamlit over Flask/Django?
+
+<AccordionGroup>
+  <Accordion title="Rapid Dashboard Development">
+    Streamlit enables building a full KPI dashboard in ~1000 lines of Python vs. ~5000 lines with Flask + React. No separate frontend build process.
+  </Accordion>
+  <Accordion title="Built-in Reactivity">
+    Automatic re-execution when inputs change. No need for manual state management or event handlers.
+  </Accordion>
+  <Accordion title="Data Science Ecosystem">
+    First-class support for Pandas DataFrames, Plotly charts, and data widgets. Display a DataFrame with `st.dataframe(df)`.
+  </Accordion>
+  <Accordion title="Deployment Simplicity">
+    Single Python process. Deploy to Streamlit Cloud, Heroku, or any Python host with `streamlit run app.py`.
+  </Accordion>
+</AccordionGroup>
+
+**Trade-offs:**
+- ❌ Less control over HTML/CSS (but `unsafe_allow_html=True` provides escape hatch)
+- ❌ Full page re-renders (mitigated by caching)
+- ✅ 10x faster development
+- ✅ Perfect for internal dashboards and prototypes
+
+### Why Pandas over SQL Database?
+
+<AccordionGroup>
+  <Accordion title="Excel as Source of Truth">
+    Business users already maintain Excel files. No need to ETL into PostgreSQL/MySQL for a 15K-row dataset.
+  </Accordion>
+  <Accordion title="In-Memory Performance">
+    With caching, all data loads into RAM once. Subsequent queries are microseconds (no network latency).
+  </Accordion>
+  <Accordion title="Rich Data Manipulation">
+    Pandas groupby/merge/pivot operations are more expressive than SQL for complex analytics.
+  </Accordion>
+  <Accordion title="Zero Infrastructure">
+    No database server to manage. Just Python + Excel file.
+  </Accordion>
+</AccordionGroup>
+
+**When to migrate to a database:**
+- Dataset grows beyond 1M rows
+- Need multi-user write access
+- Require ACID transactions
+- Need real-time data updates
+
+### Why Plotly over Matplotlib/Seaborn?
+
+<AccordionGroup>
+  <Accordion title="Interactivity Out-of-the-Box">
+    Hover tooltips, zoom, pan, and click events without custom JavaScript.
+  </Accordion>
+  <Accordion title="Modern Aesthetics">
+    Plotly charts look professional by default. Matplotlib requires extensive styling.
+  </Accordion>
+  <Accordion title="Mobile Responsive">
+    Charts automatically adapt to mobile screens.
+  </Accordion>
+  <Accordion title="Gauge and Indicator Charts">
+    Built-in support for KPI-specific chart types (gauges, bullet charts, indicators).
+  </Accordion>
+</AccordionGroup>
+
+**Trade-offs:**
+- ❌ Larger JavaScript payload (~3 MB)
+- ❌ Less control over rendering details
+- ✅ Much better UX for interactive dashboards
+
+---
+
+## Version Pinning Strategy
+
+### Major Version Locks
+
+```txt
+streamlit>=1.32.0,<2.0    # Lock to 1.x
+pandas>=2.2.0,<3.0        # Lock to 2.x
+plotly>=5.19.0,<6.0       # Lock to 5.x
+numpy>=1.26.4,<2.0        # Lock to 1.x
+```
+
+**Rationale:** Prevent breaking changes from major version bumps. Upgrade manually after testing.
+
+### Minor Version Minimums
+
+```txt
+openpyxl>=3.1.5           # No upper bound (stable API)
+faker>=23.2.0             # Dev-only, can float
+pytest>=8.0.0             # Dev-only
+```
+
+**Rationale:** Allow patch updates for bug fixes.
+
+### Dependency Resolution
+
+Streamlit requires:
+- `pandas>=1.3.0`
+- `numpy>=1.19.3`
+- `plotly>=5.0.0`
+
+Our constraints are **more strict**, ensuring we get tested versions.
+
+---
+
+## Environment Setup
+
+### Installation
+
+```bash
+# Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Verify installation
+streamlit --version  # Should output 1.32.0 or higher
+```
+
+### Python Version
+
+**Recommended:** Python 3.11+  
+**Minimum:** Python 3.9 (Streamlit requirement)
+
+**Why 3.11+:**
+- 25% faster than 3.9 (PEP 659 specializing interpreter)
+- Better error messages
+- `tomllib` in stdlib (if migrating to `pyproject.toml`)
+
+### Running the App
+
+```bash
+# Generate mock data (first time only)
+python data/mock/generate_mock_data.py
+
+# Start Streamlit server
+streamlit run app.py
+
+# Open browser to http://localhost:8501
+```
+
+### Running Tests
+
+```bash
+# All tests
+pytest tests/ -v
+
+# Specific test file
+pytest tests/test_kpis.py -v
+
+# With coverage
+pip install pytest-cov
+pytest tests/ --cov=src --cov-report=html
+```
+
+---
+
+## Production Considerations
+
+### Deployment Options
+
+<CardGroup cols={2}>
+  <Card title="Streamlit Cloud" icon="cloud">
+    Official hosting. Free tier available. Deploy via GitHub integration.
+  </Card>
+  <Card title="Docker" icon="docker">
+    Containerize with `python:3.11-slim` base image. Expose port 8501.
+  </Card>
+  <Card title="Heroku" icon="rocket">
+    Use Python buildpack. Add `setup.sh` and `Procfile`.
+  </Card>
+  <Card title="AWS EC2" icon="server">
+    Run Streamlit behind Nginx reverse proxy. Use systemd for process management.
+  </Card>
+</CardGroup>
+
+### Dockerfile Example
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+```
+
+### Performance Tuning
+
+**Caching configuration:**
+```python
+# Increase cache TTL for production
+@st.cache_data(ttl=7200)  # 2 hours instead of 1
+def load_data():
+    ...
+```
+
+**Resource limits:**
+```toml
+# .streamlit/config.toml
+[server]
+maxUploadSize = 200  # MB (for Excel uploads)
+enableCORS = false
+
+[browser]
+gatherUsageStats = false
+```
+
+**Excel optimization:**
+```python
+# Read only needed columns
+df = xl.parse("Ventas", usecols=["fecha", "id_vendedor", "importe_neto"])
+
+# Or read as chunks if data grows
+for chunk in pd.read_excel(path, chunksize=10000):
+    process(chunk)
+```
+
+### Security
+
+**No authentication built-in.** For production:
+
+1. **Deploy behind auth proxy** (e.g., OAuth2 Proxy, Authelia)
+2. **Use Streamlit Authenticator** library:
+   ```bash
+   pip install streamlit-authenticator
+   ```
+3. **Network-level security** (VPN, IP whitelisting)
+
+**Data security:**
+- Excel file contains sensitive sales data
+- Store in secure location (not `/tmp`)
+- Consider encrypting at rest
+
+---
+
+## Technology Alternatives Considered
+
+| Technology | Alternative | Why Not Chosen |
+|------------|-------------|----------------|
+| Streamlit | **Dash (Plotly)** | More boilerplate, React-based (harder for Python-only teams) |
+| Streamlit | **Gradio** | Better for ML demos, less suited for dashboards |
+| Streamlit | **Flask + React** | 5x more code, requires frontend expertise |
+| Pandas | **Polars** | Too new, smaller ecosystem (as of 2024) |
+| Excel | **PostgreSQL** | Overkill for 15K rows, adds infra complexity |
+| Plotly | **Matplotlib** | No interactivity, dated aesthetics |
+| Plotly | **Altair** | Smaller chart library, less flexible theming |
+| openpyxl | **xlrd** | Deprecated, doesn't support `.xlsx` |
+
+---
+
+## Upgrading Dependencies
+
+### Safe Upgrade Process
+
+1. **Check for breaking changes:**
+   ```bash
+   pip list --outdated
+   # Review changelogs for streamlit, pandas, plotly
+   ```
+
+2. **Upgrade in isolated environment:**
+   ```bash
+   python -m venv venv-test
+   source venv-test/bin/activate
+   pip install streamlit==1.35.0  # Example: test new version
+   ```
+
+3. **Run full test suite:**
+   ```bash
+   pytest tests/ -v
+   streamlit run app.py  # Manual testing
+   ```
+
+4. **Update `requirements.txt`:**
+   ```txt
+   streamlit>=1.35.0,<2.0  # Update minimum version
+   ```
+
+5. **Freeze exact versions for production:**
+   ```bash
+   pip freeze > requirements-lock.txt
+   ```
+
+### Known Upgrade Risks
+
+- **Streamlit 2.0:** Will introduce breaking changes (multi-page API, widget behavior)
+- **Pandas 3.0:** May remove deprecated methods (`.append()`, `.ix[]`)
+- **NumPy 2.0:** ABI changes require all packages to rebuild
+
+**Mitigation:** Pin major versions and upgrade only after community stabilization.
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="sitemap" href="/dev/architecture-overview">
+    Learn how these technologies work together in the system architecture
+  </Card>
+  <Card title="Project Structure" icon="folder-tree" href="/dev/project-structure">
+    See where each dependency is used in the codebase
+  </Card>
+</CardGroup>

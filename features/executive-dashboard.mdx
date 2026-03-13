@@ -1,0 +1,173 @@
+---
+title: Executive Dashboard
+description: Get a complete overview of your sales performance with KPIs, rankings, and alerts at a glance
+icon: "chart-line"
+---
+
+## Overview
+
+The Executive Dashboard is your command center for sales intelligence. In seconds, you can see how your entire business is performing without opening a single spreadsheet.
+
+<Note>
+  The Executive Dashboard is the first screen you see when launching Visor KPI Comercial — it's designed for quick decision-making at the management level.
+</Note>
+
+## What You See
+
+The dashboard displays the most critical business metrics in a single view:
+
+<CardGroup cols={2}>
+  <Card title="Period Sales" icon="dollar-sign">
+    Total revenue for the selected period with comparison vs. previous period and objective fulfillment percentage
+  </Card>
+  <Card title="Team Performance" icon="bullseye">
+    Overall team goal achievement with traffic light indicators showing how many salespeople are on target
+  </Card>
+  <Card title="Gross Margin" icon="chart-line">
+    Total gross margin with trend comparison to identify profitability changes
+  </Card>
+  <Card title="Customer Coverage" icon="users">
+    Percentage of active customers vs. total portfolio, with new and lost customer tracking
+  </Card>
+</CardGroup>
+
+## Key Visualizations
+
+### Performance Gauge
+
+A visual gauge shows your team's overall objective fulfillment at a glance. Below the gauge, you'll see:
+
+- **🟢 Green:** Number of salespeople exceeding 90% of their quota
+- **🟡 Yellow:** Salespeople between 70-90% of quota  
+- **🔴 Red:** Salespeople below 70% requiring immediate attention
+
+### Sales Evolution Chart
+
+Track monthly sales trends over time with:
+- Actual sales line (blue)
+- Monthly objectives line (dotted red)
+- Interactive tooltips showing exact values
+
+<Tip>
+  Hover over any point in the evolution chart to see detailed breakdowns including transaction count and average ticket size.
+</Tip>
+
+### Top Rankings
+
+See your top performers across three dimensions:
+
+**🏆 Top Salespeople**
+- Sales volume
+- Objective fulfillment %
+- Traffic light status indicator
+- Ranking position change vs. previous period
+
+**🏪 Top Customers**
+- Total purchase amount
+- Purchase frequency
+- Pareto category (A/B/C)
+- Days since last purchase
+
+**📦 Top Products**
+- Sales volume by SKU
+- Category classification
+- Growth vs. previous period
+
+## Active Alerts
+
+The dashboard displays up to 4 critical alerts requiring immediate attention:
+
+<CardGroup cols={2}>
+  <Card title="Critical Alerts" icon="circle-exclamation" color="#E84855">
+    🔴 High-priority issues like salespeople below 70% quota or customers at risk of churning
+  </Card>
+  <Card title="Warning Alerts" icon="triangle-exclamation" color="#FFB347">
+    🟡 Medium-priority items like portfolio coverage below targets or margin compression
+  </Card>
+  <Card title="Informational" icon="circle-info" color="#00C49F">
+    🟢 Growth opportunities like high-frequency customers with low ticket size
+  </Card>
+  <Card title="Trends" icon="chart-simple" color="#3B82F6">
+    🔵 Notable patterns in sales, product rotation, or customer behavior
+  </Card>
+</CardGroup>
+
+Each alert includes:
+- **Entity name**: Which salesperson, customer, or product is affected
+- **Detailed description**: Specific metrics causing the alert
+- **Suggested action**: Recommended next step to address the issue
+
+## Portfolio Health
+
+### Sales Distribution by Channel
+
+A donut chart shows revenue breakdown across your sales channels, helping you identify:
+- Which channels drive the most revenue
+- Concentration risk in specific channels
+- Growth opportunities in underperforming channels
+
+### Customer Metrics
+
+<CardGroup cols={2}>
+  <Card title="Active Customers" icon="user-check">
+    Total customers who purchased in the period, with delta showing new customers acquired
+  </Card>
+  <Card title="At-Risk Customers" icon="user-xmark">
+    Customers flagged as at risk of inactivity, with count of lost customers
+  </Card>
+</CardGroup>
+
+## Business Value
+
+<Check>**Instant visibility** — Understand your entire business health in under 10 seconds</Check>
+<Check>**Proactive management** — Alerts surface problems before they impact results</Check>
+<Check>**Data-driven priorities** — Know exactly where to focus your team's effort</Check>
+<Check>**No manual work** — Automatically updated from your sales data</Check>
+
+## Smart Insights
+
+The dashboard includes an AI-powered insight box that analyzes your data and surfaces the most important finding automatically. Examples include:
+
+- "3 salespeople are below 70% quota and require immediate coaching"
+- "Customer concentration risk: Top 5 customers represent 62% of revenue"
+- "Margin compression detected: Average margin down 4.2% vs. last period"
+
+## How KPIs Are Calculated
+
+**Period Sales** (`kpi_ventas_periodo`)
+- Sums all `importe_neto` from transactions in the selected date range
+- Compares against sum from equivalent previous period
+- Calculates fulfillment % against monthly objectives from `objetivos_df`
+
+**Team Fulfillment** 
+- Aggregates individual salesperson quotas
+- Calculates weighted average based on each person's objective
+- Traffic light thresholds: Green ≥90%, Yellow 70-90%, Red &lt;70%
+
+**Gross Margin** (`kpi_margen`)
+- Calculates `importe_neto - costo` for all transactions
+- Computes margin % as `(margin / importe_neto) * 100`
+- Compares total margin amount vs. previous period
+
+**Customer Coverage** (`kpi_cobertura_clientes`)
+- Counts unique `id_cliente` with transactions in period
+- Divides by total active customers in `clientes_df`
+- Identifies new customers (first purchase in period) and lost customers (no purchase in 60+ days)
+
+<Tip>
+  Use the sidebar filters to analyze specific time periods, sales zones, channels, or individual salespeople — all KPIs update instantly.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Management View" icon="building" href="/features/management-view">
+    Deep dive into team performance and zone analysis
+  </Card>
+  <Card title="Alerts Center" icon="bell" href="/features/alerts-center">
+    Review all active alerts and mark them as addressed
+  </Card>
+  <Card title="Customer Analysis" icon="users" href="/features/customer-analysis">
+    Analyze your customer portfolio with Pareto segmentation
+  </Card>
+</CardGroup>

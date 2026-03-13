@@ -1,0 +1,601 @@
+---
+title: Performance Metrics & Thresholds
+description: Configuration reference for performance evaluation thresholds, semaphore logic, and formatting functions
+icon: gauge-high
+---
+
+## Overview
+
+All performance thresholds, color schemes, and formatting utilities are centralized in `config.py`. These configurations drive the visual indicators (semaphores) and business logic throughout Visor KPI Comercial.
+
+---
+
+## Performance Thresholds
+
+### Objective Compliance (Cumplimiento)
+
+Thresholds for evaluating sales performance against objectives:
+
+```python
+THRESHOLDS = {
+    "cumplimiento_ok":      1.00,   # 100% or above
+    "cumplimiento_warning": 0.80,   # 80% to 99%
+    # Below 0.80 (80%) is considered critical
+}
+```
+
+**Semaphore Logic:**
+
+| Performance Level | Threshold | Indicator | Color | Label |
+|------------------|-----------|-----------|-------|-------|
+| **Excellent** | ≥ 100% | 🟢 | `#00C49F` | `success` |
+| **Acceptable** | 80% - 99% | 🟡 | `#FFB347` | `warning` |
+| **Critical** | < 80% | 🔴 | `#E84855` | `danger` |
+| **No Data** | `None` | 🔴 | `#E84855` | `danger` |
+
+<Note>
+  These thresholds are used in `kpi_por_vendedor()` to classify salesperson performance and in alert rules (ALT001).
+</Note>
+
+**Source:** `config.py:38-42`
+
+---
+
+### Growth & Decline Thresholds
+
+Thresholds for period-over-period comparisons:
+
+```python
+THRESHOLDS = {
+    "caida_critica":       -0.20,   # -20% decline triggers alerts
+    "crecimiento_notable":  0.15,   # +15% growth is highlighted
+}
+```
+
+**Business Rules:**
+
+<ParamField path="caida_critica" type="float" default="-0.20">
+  **Critical Decline Threshold**
+  
+  When sales drop by 20% or more vs. previous period:
+  - Triggers ALT003 alert for category A customers
+  - Highlights vendors with significant underperformance
+  - Requires immediate management review
+</ParamField>
+
+<ParamField path="crecimiento_notable" type="float" default="0.15">
+  **Notable Growth Threshold**
+  
+  When sales grow by 15% or more vs. previous period:
+  - Highlights positive performance in dashboards
+  - Used in executive insights
+  - May indicate successful initiatives
+</ParamField>
+
+**Source:** `config.py:44-45`
+
+---
+
+### Pareto Classification
+
+Thresholds for customer/product segmentation:
+
+```python
+THRESHOLDS = {
+    "pareto_acumulado": 0.80,   # 80% cumulative = category A
+    "pareto_B":         0.95,   # 95% cumulative = category B
+    # Above 95% = category C
+}
+```
+
+<Tip>
+  For detailed Pareto logic, see [Pareto Analysis](/analytics/pareto-analysis).
+</Tip>
+
+**Source:** `config.py:47-48`
+
+---
+
+## Color Scheme
+
+### Primary Colors
+
+```python
+COLORS = {
+    "primary":        "#1B3A6B",  # Dark blue
+    "primary_light":  "#2E5FA3",  # Medium blue
+    "accent":         "#00C49F",  # Teal/green
+}
+```
+
+### Performance Semaphore Colors
+
+```python
+COLORS = {
+    "success": "#00C49F",  # Green (100%+ compliance)
+    "warning": "#FFB347",  # Orange (80-99% compliance)
+    "danger":  "#E84855",  # Red (below 80% compliance)
+}
+```
+
+### UI Theme Colors
+
+```python
+COLORS = {
+    "bg_dark":        "#0F1923",  # Background dark
+    "bg_card":        "#1A2535",  # Card background
+    "bg_card_hover":  "#243044",  # Card hover state
+    "text_primary":   "#F0F4F8",  # Primary text (light)
+    "text_secondary": "#8899AA",  # Secondary text (gray)
+    "border":         "#2D3F55",  # Border color
+}
+```
+
+### Chart Color Sequence
+
+```python
+COLORS = {
+    "chart_seq": [
+        "#2E5FA3",  # Blue
+        "#00C49F",  # Teal
+        "#FFB347",  # Orange
+        "#E84855",  # Red
+        "#9B59B6",  # Purple
+        "#3498DB",  # Light blue
+        "#1ABC9C",  # Turquoise
+        "#F39C12",  # Gold
+    ]
+}
+```
+
+<Info>
+  Used for multi-series charts (e.g., comparing multiple salespeople or products). Colors cycle through this sequence.
+</Info>
+
+**Source:** `config.py:11-36`
+
+---
+
+## Semaphore Functions
+
+### `get_color_semaforo()`
+
+Returns hex color code based on compliance percentage.
+
+**Function Signature:**
+```python
+def get_color_semaforo(cumplimiento: float) -> str
+```
+
+**Logic:**
+```python
+if cumplimiento is None:
+    return "#E84855"  # Red
+if cumplimiento >= 1.00:
+    return "#00C49F"  # Green
+elif cumplimiento >= 0.80:
+    return "#FFB347"  # Orange
+return "#E84855"     # Red
+```
+
+**Example Usage:**
+```python
+color = get_color_semaforo(0.92)  # Returns "#FFB347" (orange)
+```
+
+**Source:** `config.py:136-148`
+
+---
+
+### `get_label_semaforo()`
+
+Returns string label for styling components.
+
+**Function Signature:**
+```python
+def get_label_semaforo(cumplimiento: float) -> str
+```
+
+**Returns:** `'success'`, `'warning'`, or `'danger'`
+
+**Logic:**
+```python
+if cumplimiento is None:
+    return "danger"
+if cumplimiento >= 1.00:
+    return "success"
+elif cumplimiento >= 0.80:
+    return "warning"
+return "danger"
+```
+
+**Used in:**
+- Streamlit metric components
+- Alert severity mapping
+- KPI card styling
+
+**Source:** `config.py:151-163`
+
+---
+
+### `get_emoji_semaforo()`
+
+Returns emoji indicator for compliance level.
+
+**Function Signature:**
+```python
+def get_emoji_semaforo(cumplimiento: float) -> str
+```
+
+**Returns:**
+- 🟢 for `success` (≥100%)
+- 🟡 for `warning` (80-99%)
+- 🔴 for `danger` (&lt;80% or None)
+- ⚪ for unknown states
+
+**Source:** `config.py:166-168`
+
+---
+
+## Formatting Functions
+
+### Currency Formatting
+
+#### `fmt_moneda()`
+
+Formats numbers as Argentine-style currency.
+
+**Function Signature:**
+```python
+def fmt_moneda(valor: float) -> str
+```
+
+**Examples:**
+```python
+fmt_moneda(1284500)     # "$1.284.500"
+fmt_moneda(542.75)      # "$542,75"
+fmt_moneda(-15000)      # "-$15.000"
+fmt_moneda(None)        # "$0"
+```
+
+**Logic:**
+- Uses `.` as thousands separator
+- Uses `,` as decimal separator
+- No decimals for values ≥ 1,000
+- Two decimals for values < 1,000
+- Handles None gracefully
+
+**Source:** `config.py:67-81`
+
+---
+
+### Percentage Formatting
+
+#### `fmt_pct()`
+
+Formats decimal percentages as readable strings.
+
+**Function Signature:**
+```python
+def fmt_pct(valor: float, decimales: int = 1) -> str
+```
+
+**Examples:**
+```python
+fmt_pct(0.842)          # "84.2%"
+fmt_pct(1.05)           # "105.0%"
+fmt_pct(0.8, decimales=0)  # "80%"
+fmt_pct(None)           # "—"
+```
+
+**Parameters:**
+- `valor`: Decimal percentage (0.842 = 84.2%)
+- `decimales`: Number of decimal places (default: 1)
+
+**Source:** `config.py:84-91`
+
+---
+
+### Number Formatting
+
+#### `fmt_numero()`
+
+Formats integers with thousands separators.
+
+**Function Signature:**
+```python
+def fmt_numero(valor: float) -> str
+```
+
+**Examples:**
+```python
+fmt_numero(1284)       # "1.284"
+fmt_numero(42)         # "42"
+fmt_numero(1500000)    # "1.500.000"
+```
+
+**Source:** `config.py:94-101`
+
+---
+
+### Delta Formatting
+
+#### `fmt_delta()`
+
+Formats period-over-period changes with directional arrows.
+
+**Function Signature:**
+```python
+def fmt_delta(valor: float) -> str
+```
+
+**Examples:**
+```python
+fmt_delta(0.082)       # "▲ +8.2%"
+fmt_delta(-0.031)      # "▼ -3.1%"
+fmt_delta(0.0004)      # "— 0.0%"
+fmt_delta(None)        # "—"
+```
+
+**Logic:**
+- Uses ▲ for increases > 0.05%
+- Uses ▼ for decreases < -0.05%
+- Shows "— 0.0%" for changes between -0.05% and +0.05%
+
+**Source:** `config.py:104-116`
+
+---
+
+#### `fmt_delta_html()`
+
+HTML version with color styling for web display.
+
+**Function Signature:**
+```python
+def fmt_delta_html(valor: float) -> str
+```
+
+**Examples:**
+```python
+fmt_delta_html(0.082)
+# <span style='color:#00C49F'>▲ +8.2%</span>
+
+fmt_delta_html(-0.031)
+# <span style='color:#E84855'>▼ -3.1%</span>
+
+fmt_delta_html(0.0004)
+# <span style='color:#8899AA'>— 0.0%</span>
+```
+
+**Colors:**
+- Green (#00C49F) for positive changes
+- Red (#E84855) for negative changes
+- Gray (#8899AA) for neutral or None
+
+**Source:** `config.py:119-131`
+
+---
+
+## Business Constants
+
+### Geographic Zones
+
+```python
+ZONAS = ["GBA Norte", "GBA Sur", "Interior"]
+```
+
+Sales territories for salesperson assignment and analysis.
+
+**Source:** `config.py:56`
+
+---
+
+### Sales Channels
+
+```python
+CANALES = [
+    "Canal Tradicional",
+    "Supermercadismo",
+    "Mayorista",
+    "HoReCa"  # Hotels, Restaurants, Cafés
+]
+```
+
+Customer classification by distribution channel.
+
+**Source:** `config.py:57`
+
+---
+
+### Company Information
+
+```python
+EMPRESA = {
+    "nombre":          "Distribuidora Del Sur S.A.",
+    "periodo_inicio":  date(2023, 1, 1),
+    "periodo_fin":     date(2026, 3, 31),
+}
+```
+
+**Source:** `config.py:59-63`
+
+---
+
+## Period Management
+
+### `get_periodos()`
+
+Returns predefined date ranges for filtering.
+
+**Function Signature:**
+```python
+def get_periodos() -> dict
+```
+
+**Returns:**
+```python
+{
+    "Este mes":         (date(2026, 3, 1), date(2026, 3, 13)),
+    "Mes anterior":     (date(2026, 2, 1), date(2026, 2, 28)),
+    "Último trimestre": (date(2025, 12, 13), date(2026, 3, 13)),
+    "Este año":         (date(2026, 1, 1), date(2026, 3, 13)),
+    "Año anterior":     (date(2025, 1, 1), date(2025, 12, 31)),
+    "Personalizado":    None,  # Triggers custom date picker
+}
+```
+
+**Usage:** Populates dropdown filters in Streamlit UI.
+
+**Source:** `config.py:173-185`
+
+---
+
+### `get_periodo_anterior()`
+
+Calculates equivalent comparison period.
+
+**Function Signature:**
+```python
+def get_periodo_anterior(
+    fecha_desde: date,
+    fecha_hasta: date
+) -> tuple[date, date]
+```
+
+**Example:**
+```python
+# Current period: March 1-15, 2026 (15 days)
+desde, hasta = get_periodo_anterior(
+    date(2026, 3, 1),
+    date(2026, 3, 15)
+)
+# Returns: (date(2026, 2, 14), date(2026, 2, 28))
+# Previous 15 days ending on Feb 28
+```
+
+**Logic:**
+1. Calculate duration in days
+2. Set new end date = old start date - 1
+3. Set new start date = new end date - duration
+
+**Used in:** KPI functions for period-over-period comparisons.
+
+**Source:** `config.py:188-193`
+
+---
+
+## Plotly Chart Theme
+
+### Default Configuration
+
+```python
+PLOTLY_THEME = {
+    "paper_bgcolor": "#1A2535",  # Matches card background
+    "plot_bgcolor":  "#1A2535",
+    "font": {
+        "color":  "#F0F4F8",
+        "family": "Inter, sans-serif",
+        "size":   12
+    },
+    "margin": dict(l=20, r=20, t=40, b=20)
+}
+```
+
+**Usage:**
+```python
+import plotly.graph_objects as go
+from config import PLOTLY_THEME
+
+fig = go.Figure()
+fig.update_layout(**PLOTLY_THEME)
+```
+
+Ensures all charts have consistent dark theme styling matching the Streamlit app.
+
+**Source:** `config.py:197-202`
+
+---
+
+## Data Paths
+
+### File Locations
+
+```python
+BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "data", "raw", "mock_data.xlsx")
+```
+
+**Default data source:** `/path/to/visor_kpi/data/raw/mock_data.xlsx`
+
+**Source:** `config.py:52-53`
+
+---
+
+## Usage in KPI Engine
+
+### Integration Examples
+
+#### Salesperson Semaphore
+
+```python
+from config import THRESHOLDS
+
+def _color_semaforo(cumpl: float | None) -> str:
+    if cumpl is None:
+        return "#E84855"
+    if cumpl >= THRESHOLDS["cumplimiento_ok"]:
+        return "#00C49F"
+    elif cumpl >= THRESHOLDS["cumplimiento_warning"]:
+        return "#FFB347"
+    return "#E84855"
+```
+
+**Used in:** `kpi_por_vendedor()` to assign performance indicators
+
+#### Executive Insight Generation
+
+```python
+from config import fmt_moneda, fmt_pct, fmt_delta
+
+def generar_insight_ejecutivo(kpi_ventas, kpi_vend, alertas_df):
+    importe = fmt_moneda(kpi_ventas["importe_total"])
+    cumpl = fmt_pct(kpi_ventas["cumplimiento_pct"])
+    
+    if kpi_ventas.get("importe_vs_anterior"):
+        delta_txt = f", {fmt_delta(kpi_ventas['importe_vs_anterior'])} vs período anterior"
+    
+    return f"El equipo lleva {importe} en ventas{delta_txt}..."
+```
+
+---
+
+## Configuration Summary
+
+### Quick Reference Table
+
+| Metric | Threshold | Indicator |
+|--------|-----------|----------|
+| **Compliance** | ≥100% | 🟢 Green |
+| | 80-99% | 🟡 Orange |
+| | &lt;80% | 🔴 Red |
+| **Decline** | ≤-20% | Alert triggered |
+| **Growth** | ≥+15% | Highlighted |
+| **Pareto A** | 0-80% cumulative | High value |
+| **Pareto B** | 80-95% cumulative | Medium value |
+| **Pareto C** | >95% cumulative | Low value |
+
+---
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="KPI Calculations" icon="calculator" href="/analytics/kpi-calculations">
+    How thresholds are applied in KPI functions
+  </Card>
+  <Card title="Alert Rules" icon="bell" href="/analytics/alert-rules">
+    Alert thresholds and severity levels
+  </Card>
+  <Card title="Pareto Analysis" icon="chart-pyramid" href="/analytics/pareto-analysis">
+    Pareto threshold implementation
+  </Card>
+</CardGroup>

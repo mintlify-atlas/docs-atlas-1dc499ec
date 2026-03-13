@@ -1,0 +1,367 @@
+---
+title: Pareto Analysis (80/20)
+description: Detailed reference for the Pareto classification system used to segment customers and products by contribution
+icon: chart-pyramid
+---
+
+## Overview
+
+The Pareto analysis module (`src/pareto.py`) implements the 80/20 principle to classify customers and products into three categories based on their contribution to total sales.
+
+<Info>
+  The Pareto principle states that roughly 80% of effects come from 20% of causes. In sales, typically 20% of customers generate 80% of revenue.
+</Info>
+
+---
+
+## Category Definitions
+
+| Category | Cumulative % | Business Significance |
+|----------|--------------|----------------------|
+| **A** | 0-80% | High-value entities that generate the majority of revenue. Require special attention and relationship management. |
+| **B** | 80-95% | Medium-value entities with growth potential. Candidates for promotion to category A. |
+| **C** | 95-100% | Low-value entities that contribute minimally. May require efficiency strategies. |
+
+<Note>
+  Categories are assigned based on **cumulative contribution** after sorting by sales value in descending order, not by absolute sales amounts.
+</Note>
+
+---
+
+## Core Function
+
+### `calcular_pareto()`
+
+Adds Pareto classification columns to any DataFrame with a value metric.
+
+**Function Signature:**
+```python
+def calcular_pareto(
+    df: pd.DataFrame,
+    columna_valor: str,
+    columna_id: str,
+) -> pd.DataFrame
+```
+
+**Parameters:**
+
+<ParamField path="df" type="DataFrame" required>
+  Input DataFrame with entities to classify (customers, products, etc.)
+</ParamField>
+
+<ParamField path="columna_valor" type="str" required>
+  Column name containing the value metric (e.g., "importe_total", "margen_neto")
+</ParamField>
+
+<ParamField path="columna_id" type="str" required>
+  Column name with unique entity identifier (e.g., "id_cliente", "id_producto")
+</ParamField>
+
+**Returns:**
+
+The same DataFrame with three additional columns:
+
+<ResponseField name="participacion_pct" type="float">
+  Individual contribution as percentage of total (0.0 to 1.0)
+  
+  **Formula:** `valor_entidad / sum(columna_valor)`
+</ResponseField>
+
+<ResponseField name="acumulado_pct" type="float">
+  Cumulative contribution percentage after sorting descending (0.0 to 1.0)
+  
+  **Formula:** `cumsum(participacion_pct)` after sorting by value
+</ResponseField>
+
+<ResponseField name="categoria_pareto" type="str">
+  Classification category: 'A', 'B', or 'C'
+  
+  **Logic:**
+  - 'A' if `acumulado_pct <= 0.80`
+  - 'B' if `0.80 < acumulado_pct <= 0.95`
+  - 'C' if `acumulado_pct > 0.95`
+</ResponseField>
+
+**Source:** `src/pareto.py:11-54`
+
+---
+
+## Calculation Algorithm
+
+### Step-by-Step Process
+
+1. **Validate Input**
+   ```python
+   if df.empty or columna_valor not in df.columns:
+       return df with default values (all 'C')
+   ```
+
+2. **Calculate Total**
+   ```python
+   total = df[columna_valor].sum()
+   if total == 0:
+       return df with zeros and 'C' category
+   ```
+
+3. **Sort Descending by Value**
+   ```python
+   df = df.sort_values(columna_valor, ascending=False).reset_index(drop=True)
+   ```
+
+4. **Calculate Individual Participation**
+   ```python
+   df["participacion_pct"] = df[columna_valor] / total
+   ```
+
+5. **Calculate Cumulative Sum**
+   ```python
+   df["acumulado_pct"] = df["participacion_pct"].cumsum()
+   ```
+
+6. **Assign Categories**
+   ```python
+   def _cat(acum: float) -> str:
+       if acum <= 0.80:
+           return "A"
+       elif acum <= 0.95:
+           return "B"
+       return "C"
+   
+   df["categoria_pareto"] = df["acumulado_pct"].apply(_cat)
+   ```
+
+<Warning>
+  The DataFrame is sorted in-place by the value column. The returned DataFrame order may differ from the input.
+</Warning>
+
+---
+
+## Example Calculation
+
+### Sample Data: Top 5 Customers
+
+| id_cliente | razon_social | importe_total |
+|------------|--------------|---------------|
+| CLI001 | Mega S.A. | $500,000 |
+| CLI002 | Alpha Corp | $300,000 |
+| CLI003 | Beta Ltd | $150,000 |
+| CLI004 | Gamma Inc | $40,000 |
+| CLI005 | Delta Co | $10,000 |
+
+**Total:** $1,000,000
+
+### After `calcular_pareto(df, "importe_total", "id_cliente")`:
+
+| id_cliente | importe_total | participacion_pct | acumulado_pct | categoria_pareto |
+|------------|---------------|-------------------|---------------|------------------|
+| CLI001 | $500,000 | 0.50 | 0.50 | **A** |
+| CLI002 | $300,000 | 0.30 | 0.80 | **A** |
+| CLI003 | $150,000 | 0.15 | 0.95 | **B** |
+| CLI004 | $40,000 | 0.04 | 0.99 | **C** |
+| CLI005 | $10,000 | 0.01 | 1.00 | **C** |
+
+**Insight:** 2 customers (40%) generate 80% of revenue → classic Pareto distribution
+
+---
+
+## Concentration Metrics
+
+### `get_concentracion_pareto()`
+
+Calculates aggregate concentration statistics including the Gini index.
+
+**Function Signature:**
+```python
+def get_concentracion_pareto(
+    df: pd.DataFrame,
+    columna_valor: str = "importe_total",
+) -> dict
+```
+
+**Requirements:**
+- DataFrame must already have `categoria_pareto` column (run `calcular_pareto()` first)
+
+**Returns:**
+
+<ResponseField name="pct_entidades_A" type="float">
+  Percentage of entities in category A (0.0 to 1.0)
+  
+  **Formula:** `n_A / total_entidades`
+</ResponseField>
+
+<ResponseField name="pct_ventas_A" type="float">
+  Percentage of total sales from category A (typically ~0.80)
+  
+  **Formula:** `sum(ventas_A) / total_ventas`
+</ResponseField>
+
+<ResponseField name="n_entidades_A" type="int">
+  Absolute count of entities in category A
+</ResponseField>
+
+<ResponseField name="indice_gini" type="float">
+  Gini coefficient measuring inequality (0 = perfect equality, 1 = total concentration)
+  
+  Higher values indicate more sales concentrated in fewer entities.
+</ResponseField>
+
+**Source:** `src/pareto.py:57-93`
+
+---
+
+## Gini Index
+
+### Mathematical Definition
+
+The Gini coefficient measures statistical dispersion and is used to represent income/wealth inequality.
+
+**Formula:**
+
+```python
+def _calcular_gini(valores: np.ndarray) -> float:
+    valores = np.sort(valores.astype(float))
+    n = len(valores)
+    idx = np.arange(1, n + 1)
+    total = valores.sum()
+    
+    if total == 0:
+        return 0.0
+    
+    return float((2 * (idx * valores).sum() / (n * total)) - (n + 1) / n)
+```
+
+**Interpretation:**
+
+| Gini Index | Interpretation |
+|------------|----------------|
+| 0.0 - 0.3 | Low concentration (relatively equal distribution) |
+| 0.3 - 0.5 | Moderate concentration |
+| 0.5 - 0.7 | High concentration (typical for B2B sales) |
+| 0.7 - 1.0 | Extreme concentration (very few entities dominate) |
+
+<Tip>
+  A Gini index above 0.6 suggests opportunities for customer diversification to reduce revenue risk.
+</Tip>
+
+**Source:** `src/pareto.py:96-106`
+
+---
+
+## Usage in KPI Engine
+
+### Customer Analysis
+
+```python
+from src.pareto import calcular_pareto
+
+# Calculate customer KPIs with Pareto
+grp = df.groupby("id_cliente").agg(
+    importe_total = ("importe_neto", "sum"),
+    frecuencia_compra = ("id_venta", "count"),
+).reset_index()
+
+# Add Pareto classification
+grp = calcular_pareto(grp, "importe_total", "id_cliente")
+
+# Now grp has: participacion_pct, acumulado_pct, categoria_pareto
+```
+
+### Product Analysis
+
+```python
+# Product sales with Pareto
+grp = df.groupby("id_producto").agg(
+    importe_total = ("importe_neto", "sum"),
+    unidades_vendidas = ("cantidad", "sum"),
+).reset_index()
+
+grp = calcular_pareto(grp, "importe_total", "id_producto")
+```
+
+**Used in:**
+- `kpi_clientes()` - Customer segmentation (src/kpi_engine.py:298)
+- `kpi_productos()` - Product portfolio analysis (src/kpi_engine.py:240)
+- Alert rules for high-value customer monitoring
+
+---
+
+## Configuration Thresholds
+
+Pareto thresholds are defined in `config.py`:
+
+```python
+THRESHOLDS = {
+    "pareto_acumulado": 0.80,   # 80% cumulative = category A
+    "pareto_B":         0.95,   # 95% cumulative = category B
+}
+```
+
+<Note>
+  These thresholds are hard-coded in the Pareto module logic and match the config values. To modify the classification boundaries, update both `src/pareto.py` and `config.py`.
+</Note>
+
+**Source:** `config.py:47-48`
+
+---
+
+## Business Applications
+
+### Customer Management
+
+<AccordionGroup>
+  <Accordion title="Category A Customers" icon="star">
+    **Strategy:** White-glove service, dedicated account managers, quarterly business reviews
+    
+    **Alerts:** Monitor for inactivity >30 days (see ALT003 in alert rules)
+    
+    **Risk:** High impact if lost — requires retention programs
+  </Accordion>
+
+  <Accordion title="Category B Customers" icon="arrow-trend-up">
+    **Strategy:** Growth opportunities, upselling, increase visit frequency
+    
+    **Alerts:** Celebrate growth >30% (see ALT006 opportunity alert)
+    
+    **Potential:** These customers can be promoted to category A
+  </Accordion>
+
+  <Accordion title="Category C Customers" icon="users">
+    **Strategy:** Efficiency focus, digital channels, standardized service
+    
+    **Analysis:** Evaluate profitability after service costs
+    
+    **Opportunity:** Large volume can still be strategically valuable
+  </Accordion>
+</AccordionGroup>
+
+### Product Portfolio
+
+- **Category A Products:** Core offerings, ensure stock availability, feature in promotions
+- **Category B Products:** Cross-sell opportunities, bundle with A products
+- **Category C Products:** Review for discontinuation or niche positioning
+
+---
+
+## API Reference Summary
+
+| Function | Purpose | Returns |
+|----------|---------|----------|
+| `calcular_pareto()` | Classify entities into A/B/C categories | DataFrame with 3 new columns |
+| `get_concentracion_pareto()` | Calculate concentration metrics | dict with 4 metrics |
+| `_calcular_gini()` | Compute Gini inequality index | float (0-1) |
+
+---
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="KPI Calculations" icon="calculator" href="/analytics/kpi-calculations">
+    How Pareto is used in customer and product KPIs
+  </Card>
+  <Card title="Alert Rules" icon="bell" href="/analytics/alert-rules">
+    Alerts triggered for category A and B customers
+  </Card>
+  <Card title="Performance Metrics" icon="gauge-high" href="/analytics/performance-metrics">
+    Threshold definitions and configuration
+  </Card>
+</CardGroup>

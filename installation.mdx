@@ -1,0 +1,477 @@
+---
+title: Installation
+description: Complete installation guide for Visor KPI Comercial with detailed setup instructions
+---
+
+This guide provides comprehensive installation instructions for Visor KPI Comercial, including prerequisites, environment setup, and troubleshooting.
+
+## System Requirements
+
+### Required Software
+
+- **Python**: Version 3.10 or higher (3.10-3.12 recommended)
+- **Git**: For cloning the repository
+- **pip**: Python package manager (included with Python 3.4+)
+
+### Operating System
+
+- Windows 10/11
+- macOS 10.14 or later
+- Linux (Ubuntu 20.04+, Debian 10+, or equivalent)
+
+### Hardware
+
+- **RAM**: 2GB minimum, 4GB recommended
+- **Storage**: 500MB free space for application and data
+- **Network**: Internet connection for initial package installation
+
+## Installation Steps
+
+<Steps>
+  <Step title="Verify Python installation">
+    Check that Python 3.10+ is installed on your system:
+
+    ```bash
+    python --version
+    ```
+
+    Expected output: `Python 3.10.x` or higher
+
+    <Note>
+      On some systems, you may need to use `python3` instead of `python`.
+    </Note>
+
+    If Python is not installed or the version is below 3.10:
+    - **Windows**: Download from [python.org](https://www.python.org/downloads/)
+    - **macOS**: Use Homebrew: `brew install python@3.11`
+    - **Linux**: Use your package manager: `sudo apt install python3.11`
+  </Step>
+
+  <Step title="Clone the repository">
+    Clone the project from GitHub:
+
+    ```bash
+    git clone https://github.com/ricardobing/excel-to-kpi-dashboard.git
+    cd excel-to-kpi-dashboard
+    ```
+
+    This creates a directory called `excel-to-kpi-dashboard` with the complete project structure.
+  </Step>
+
+  <Step title="Create a virtual environment">
+    Virtual environments isolate your project dependencies from other Python projects.
+
+    <CodeGroup>
+      ```bash Windows
+      # Create virtual environment
+      python -m venv .venv
+
+      # Activate virtual environment
+      .venv\Scripts\activate
+      ```
+
+      ```bash macOS/Linux
+      # Create virtual environment
+      python -m venv .venv
+
+      # Activate virtual environment
+      source .venv/bin/activate
+      ```
+    </CodeGroup>
+
+    When activated, you'll see `(.venv)` at the beginning of your terminal prompt.
+
+    <Warning>
+      Always activate the virtual environment before running the application or installing packages.
+    </Warning>
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all required Python packages:
+
+    ```bash
+    pip install -r visor_kpi/requirements.txt
+    ```
+
+    This installs the following dependencies:
+
+    | Package | Version | Purpose |
+    |---------|---------|----------|
+    | streamlit | 1.32+ | Multi-page dashboard framework |
+    | pandas | 2.2+ | Data processing and ETL pipeline |
+    | plotly | 5.19+ | Interactive charts and visualizations |
+    | numpy | 1.26+ | Numerical computations |
+    | openpyxl | 3.1.5+ | Excel file reading/writing |
+    | faker | 23.2+ | Mock data generation (es_AR locale) |
+    | pytest | 8.0+ | Automated testing suite |
+    | xlsxwriter | 3.1.9+ | Excel export functionality |
+    | python-dateutil | 2.9+ | Date manipulation utilities |
+
+    Installation typically takes 1-2 minutes depending on your internet connection.
+  </Step>
+
+  <Step title="Generate mock data">
+    Navigate to the application directory:
+
+    ```bash
+    cd visor_kpi
+    ```
+
+    Run the mock data generator:
+
+    ```bash
+    python data/mock/generate_mock_data.py
+    ```
+
+    ### What this script does:
+
+    The generator creates a realistic sales dataset at `visor_kpi/data/raw/mock_data.xlsx` with:
+
+    - **Time period**: January 2023 - March 2026 (27 complete months)
+    - **12 salespeople** with 4 performance profiles:
+      - **Estrella** (Star): High performers exceeding targets
+      - **Estable** (Stable): Consistent performers meeting targets
+      - **Desarrollo** (Development): Growing performers below target
+      - **Problemático** (Problematic): Underperformers requiring attention
+    - **180 clients** distributed across:
+      - Canal Tradicional (Traditional Channel): 90 clients
+      - Supermercadismo (Supermarkets): 36 clients
+      - Mayorista (Wholesale): 27 clients
+      - HoReCa (Hotels/Restaurants/Cafes): 27 clients
+    - **60 products** across 5 categories:
+      - Lácteos (Dairy): 10 products
+      - Almacén (Groceries): 15 products
+      - Bebidas (Beverages): 15 products
+      - Limpieza (Cleaning): 10 products
+      - Perfumería (Personal Care): 10 products
+    - **~30,000 transactions** with realistic patterns:
+      - Seasonality (Dec/Jan peaks)
+      - Channel-specific discount structures
+      - Geographic distribution across 3 zones
+      - Low-rotation products (20% of catalog)
+
+    <Note>
+      The script uses `Faker` with `es_AR` locale for Argentina-specific naming conventions and takes approximately 30 seconds to complete.
+    </Note>
+
+    ### Expected output:
+
+    ```
+    Generando datos mock...
+      • Vendedores...
+      • Clientes...
+      • Productos...
+      • Objetivos...
+      • Transacciones (puede demorar ~30s)...
+
+    =======================================================
+      RESUMEN DE VALIDACIÓN — Visor KPI Mock Data
+    =======================================================
+    ✅ Vendedores generados: 12
+    ✅ Clientes generados: 180 (153 activos, 27 inactivos)
+    ✅ Productos generados: 60
+    ✅ Transacciones generadas: ~30,000
+    ✅ Período cubierto: Jan-2023 a Mar-2026
+    ✅ Generación completada.
+
+    📁 Excel guardado en: visor_kpi/data/raw/mock_data.xlsx
+    ```
+  </Step>
+
+  <Step title="Launch the application">
+    Start the Streamlit dashboard:
+
+    ```bash
+    streamlit run app.py
+    ```
+
+    The application will start and automatically open in your default browser at:
+
+    ```
+    http://localhost:8501
+    ```
+
+    You should see the Executive Summary page with key performance indicators.
+
+    <Note>
+      The dashboard loads in under 3 seconds with the complete dataset.
+    </Note>
+  </Step>
+
+  <Step title="Verify installation">
+    Run the test suite to ensure everything is working correctly:
+
+    ```bash
+    pytest tests/ -v
+    ```
+
+    Expected output:
+
+    ```
+    ========================== test session starts ==========================
+    collected 51 items
+
+    tests/test_alerts.py ................              [ 31%]
+    tests/test_kpis.py ......................          [ 74%]
+    tests/test_mock_data.py ............               [100%]
+
+    ========================== 51 passed in 2.34s ===========================
+    ```
+
+    The test suite covers:
+    - **Dataset validation**: Structure, data types, referential integrity
+    - **KPI engine**: Calculations for sales, margins, quotas, coverage
+    - **Pareto analysis**: A/B/C classification, Gini coefficient
+    - **Alert engine**: Business rules ALT001-ALT007
+  </Step>
+</Steps>
+
+## Project Structure
+
+After installation, your project will have the following structure:
+
+```
+excel-to-kpi-dashboard/
+└── visor_kpi/
+    ├── app.py                          # Main dashboard entry point
+    ├── config.py                       # Global configuration
+    ├── requirements.txt                # Python dependencies
+    │
+    ├── pages/                          # Multi-page dashboard views
+    │   ├── 1_gerencia.py              # Manager consolidated view
+    │   ├── 2_vendedores.py            # Individual salesperson view
+    │   ├── 3_clientes.py              # Client portfolio analysis
+    │   ├── 4_productos.py             # Product performance analysis
+    │   └── 5_alertas.py               # Alerts and opportunities center
+    │
+    ├── src/                           # Business logic core
+    │   ├── data_loader.py             # ETL: Excel reading and validation
+    │   ├── kpi_engine.py              # KPI calculation engine
+    │   ├── pareto.py                  # 80/20 analysis and A/B/C classification
+    │   ├── alerts_engine.py           # Alert rules engine (ALT001-ALT007)
+    │   └── reports.py                 # Exportable report generation
+    │
+    ├── components/                    # Reusable UI components
+    │   ├── kpi_card.py               # KPI cards with traffic light indicators
+    │   ├── charts.py                 # Plotly visualizations
+    │   ├── filters.py                # Sidebar filters with session state
+    │   └── rankings.py               # Styled ranking tables
+    │
+    ├── data/
+    │   ├── mock/
+    │   │   └── generate_mock_data.py  # Mock data generator script
+    │   └── raw/
+    │       └── mock_data.xlsx         # Generated dataset (after Step 5)
+    │
+    ├── assets/
+    │   └── style.css                  # Dark theme styling
+    │
+    └── tests/
+        ├── test_mock_data.py          # Dataset validation tests
+        ├── test_kpis.py               # KPI engine tests
+        └── test_alerts.py             # Alert engine tests
+```
+
+## Configuration
+
+### Data Path
+
+The application looks for data at `visor_kpi/data/raw/mock_data.xlsx` by default. This is configured in `config.py`:
+
+```python
+DATA_PATH = os.path.join(BASE_DIR, "data", "raw", "mock_data.xlsx")
+```
+
+### Color Theme
+
+The dashboard uses a dark theme with customizable colors defined in `config.py`:
+
+```python
+COLORS = {
+    "bg_dark":        "#0F1923",
+    "bg_card":        "#1A2535",
+    "success":        "#00C49F",
+    "warning":        "#FFB347",
+    "danger":         "#E84855",
+}
+```
+
+### Performance Thresholds
+
+Business rule thresholds are configurable in `config.py`:
+
+```python
+THRESHOLDS = {
+    "cumplimiento_ok":      1.00,   # 100% quota = green
+    "cumplimiento_warning": 0.80,   # 80% quota = orange
+    "pareto_acumulado":     0.80,   # 80% volume = A clients
+}
+```
+
+## Troubleshooting
+
+<Accordion title="Virtual environment activation fails">
+  **Windows PowerShell**: If you see an execution policy error:
+
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+  .venv\Scripts\activate
+  ```
+
+  **Alternative**: Use Command Prompt instead of PowerShell.
+</Accordion>
+
+<Accordion title="pip install fails with permission errors">
+  **Do not use sudo with virtual environments**. Ensure your virtual environment is activated:
+
+  ```bash
+  # Check if activated - you should see (.venv) in your prompt
+  which python
+  # Should show: /path/to/project/.venv/bin/python
+  ```
+
+  If still having issues, upgrade pip:
+
+  ```bash
+  python -m pip install --upgrade pip
+  ```
+</Accordion>
+
+<Accordion title="Streamlit command not found">
+  Ensure your virtual environment is activated and Streamlit is installed:
+
+  ```bash
+  pip list | grep streamlit
+  ```
+
+  If not found:
+
+  ```bash
+  pip install streamlit>=1.32.0
+  ```
+</Accordion>
+
+<Accordion title="Mock data generation fails">
+  **Ensure you're in the correct directory**:
+
+  ```bash
+  pwd  # Should show: /path/to/excel-to-kpi-dashboard/visor_kpi
+  ```
+
+  **Check that the data directory exists**:
+
+  ```bash
+  ls data/mock/
+  # Should show: generate_mock_data.py
+  ```
+
+  **Run with full path if necessary**:
+
+  ```bash
+  python data/mock/generate_mock_data.py
+  ```
+</Accordion>
+
+<Accordion title="Excel file not found when running app">
+  Verify the mock data file exists:
+
+  ```bash
+  ls data/raw/
+  # Should show: mock_data.xlsx
+  ```
+
+  If missing, regenerate it:
+
+  ```bash
+  python data/mock/generate_mock_data.py
+  ```
+</Accordion>
+
+<Accordion title="Port 8501 already in use">
+  Specify a different port when launching:
+
+  ```bash
+  streamlit run app.py --server.port 8502
+  ```
+
+  Then access the app at `http://localhost:8502`
+</Accordion>
+
+<Accordion title="Tests fail after installation">
+  Ensure you're running tests from the correct directory:
+
+  ```bash
+  cd visor_kpi
+  pytest tests/ -v
+  ```
+
+  If specific tests fail, run them individually for more details:
+
+  ```bash
+  pytest tests/test_mock_data.py -v
+  pytest tests/test_kpis.py -v
+  pytest tests/test_alerts.py -v
+  ```
+</Accordion>
+
+<Accordion title="Import errors when running the app">
+  This usually means dependencies weren't fully installed. Reinstall:
+
+  ```bash
+  pip install --force-reinstall -r visor_kpi/requirements.txt
+  ```
+
+  Or install missing packages individually:
+
+  ```bash
+  pip install pandas plotly streamlit openpyxl faker
+  ```
+</Accordion>
+
+## Deactivating the Virtual Environment
+
+When you're done working with the application:
+
+```bash
+deactivate
+```
+
+This returns you to your system's default Python environment.
+
+## Updating the Application
+
+To update to the latest version:
+
+```bash
+# Pull latest changes
+git pull origin main
+
+# Activate virtual environment
+source .venv/bin/activate  # macOS/Linux
+# or
+.venv\Scripts\activate     # Windows
+
+# Update dependencies
+pip install --upgrade -r visor_kpi/requirements.txt
+```
+
+## Uninstalling
+
+To remove the application:
+
+```bash
+# Deactivate virtual environment if active
+deactivate
+
+# Remove the project directory
+rm -rf excel-to-kpi-dashboard
+```
+
+## Next Steps
+
+Now that you have the application installed:
+
+- Read the [Quick Start](/quickstart) guide to get familiar with basic usage
+- Explore the dashboard features and views
+- Review the test suite to understand the business logic
+- Consider adapting the code for your own sales data

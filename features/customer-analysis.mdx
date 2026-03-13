@@ -1,0 +1,338 @@
+---
+title: Customer Analysis
+description: Comprehensive customer portfolio analysis with Pareto segmentation, risk detection, and opportunity identification
+icon: "users"
+---
+
+## Overview
+
+The Customer Analysis view helps you understand which customers drive your business and where portfolio risks exist. Using Pareto analysis and behavioral metrics, you can prioritize high-value relationships and prevent customer churn.
+
+<Note>
+  This view answers the critical question: "Which customers actually sustain our revenue, and are we at risk of losing them?"
+</Note>
+
+## Business Value
+
+<CardGroup cols={2}>
+  <Card title="Prioritize Effort" icon="list-check">
+    Focus sales effort on the 20% of customers generating 80% of revenue
+  </Card>
+  <Card title="Prevent Churn" icon="user-shield">
+    Identify at-risk customers before they stop buying
+  </Card>
+  <Card title="Reduce Concentration" icon="chart-pie">
+    Monitor portfolio diversification with Gini index
+  </Card>
+  <Card title="Find Growth Opportunities" icon="rocket">
+    Spot B-category customers with potential to become A-tier
+  </Card>
+</CardGroup>
+
+## Key Metrics
+
+The top KPI cards display portfolio health:
+
+### Active Customers
+- Count of unique customers who purchased in the period
+- Calculated as `df['id_cliente'].nunique()`
+- Coverage % showing active/total portfolio ratio
+
+### Portfolio Coverage
+- Percentage of total customer base that purchased
+- Formula: `(active_customers / total_customers_in_portfolio) * 100`
+- Indicates effectiveness of sales team reach
+
+**Calculated using** `kpi_cobertura_clientes(df, cli_df, df_ant)`
+
+### New Customers
+- Customers making their first purchase in this period
+- Detected by checking if `id_cliente` exists in `df_ant` (previous period)
+- Critical for growth tracking
+
+### Lost Customers  
+- Customers who purchased previously but not in current period
+- At risk of permanent churn
+- Requires immediate re-engagement action
+
+<Warning>
+  A high lost customer count combined with low new customer acquisition indicates serious portfolio erosion.
+</Warning>
+
+## Pareto Chart
+
+Visualizes the 80/20 principle in your customer base:
+
+- **Blue bars:** Individual customer revenue (sorted descending)
+- **Orange line:** Cumulative percentage
+- **80% threshold line:** Shows where you reach 80% of total revenue
+
+**Key insights:**
+- How many customers make up the top 80% of sales?
+- Is revenue concentration healthy or risky?
+- Which specific customers are in the critical top tier?
+
+**Generated using** `chart_pareto(df_cli, titulo="Pareto de Clientes", col_nombre="razon_social", col_valor="importe_total", top_n=30)`
+
+<Tip>
+  If fewer than 15-20% of customers drive 80% of revenue, your business has healthy diversification. If it's less than 5%, you have concentration risk.
+</Tip>
+
+## Customer Scatter Plot
+
+Visualizes customer behavior across two dimensions:
+
+- **X-axis:** Purchase frequency (number of orders)
+- **Y-axis:** Total spending amount
+- **Color:** Pareto category (A = green, B = yellow, C = blue)
+- **Size:** Days since last purchase (larger = more recent)
+
+This reveals four customer types:
+
+<CardGroup cols={2}>
+  <Card title="High Value / High Frequency" icon="star" color="#00C49F">
+    🌟 **VIP Customers** — Your most valuable relationships requiring white-glove service
+  </Card>
+  <Card title="High Value / Low Frequency" icon="gem" color="#3B82F6">
+    💎 **Whales** — Large but infrequent buyers; opportunity to increase visit frequency
+  </Card>
+  <Card title="Low Value / High Frequency" icon="seedling" color="#FFB347">
+    🌱 **Growth Potential** — Loyal customers with room to increase ticket size
+  </Card>
+  <Card title="Low Value / Low Frequency" icon="user" color="#6B7280">
+    👤 **Casual** — Low engagement; may not be worth heavy sales investment
+  </Card>
+</CardGroup>
+
+**Generated using** `chart_scatter_clientes(df_cli_filtrado)` with customer KPI data.
+
+## Pareto Concentration Metrics
+
+Three key metrics assess portfolio health:
+
+### Category A Customers
+- Number of customers in top tier (usually ~20% of portfolio)
+- Their share of total revenue (target ~80%)
+- Shows as both count and percentage
+
+### Revenue from A Customers
+- Percentage of total sales from category A
+- Benchmark: 70-80% is healthy
+- >85% indicates concentration risk
+- Less than 70% suggests weak customer differentiation
+
+### Gini Index
+- Statistical measure of concentration (0 to 1)
+- **0.0** = Perfect equality (all customers buy exactly the same)
+- **1.0** = Perfect inequality (one customer is 100% of revenue)
+- **Typical healthy range:** 0.35 to 0.55
+- **Concentration risk:** >0.65
+
+**Calculated using** `get_concentracion_pareto(kcli, "importe_total")` from `src/pareto.py`
+
+<Note>
+  The Gini index helps you monitor concentration trends over time. If it's steadily increasing, you're becoming more dependent on fewer customers.
+</Note>
+
+## Advanced Filters
+
+Refine your analysis with additional filters:
+
+<AccordionGroup>
+  <Accordion title="Pareto Category Filter" icon="filter">
+    Select A, B, or C to focus on specific customer tiers
+    - **A:** Top 20% by revenue
+    - **B:** Middle 30%  
+    - **C:** Bottom 50%
+  </Accordion>
+  
+  <Accordion title="Channel Filter" icon="store">
+    Analyze by sales channel (Retail, Wholesale, Direct, etc.) to see which channels have healthiest portfolios
+  </Accordion>
+  
+  <Accordion title="Status Filter" icon="toggle-on">
+    - **All:** Full customer base
+    - **Active:** Purchased in current period
+    - **At Risk:** No purchase in 30+ days or declining trend
+    - **No Recent Purchase:** Inactive >30 days
+  </Accordion>
+</AccordionGroup>
+
+## Complete Customer Table
+
+A sortable, filterable table with all customer details:
+
+| Column | Description |
+|--------|-------------|
+| **Customer Name** | Business name from `clientes_df` |
+| **Total Sales** | Sum of `importe_neto` in period |
+| **Frequency** | Number of purchase transactions |
+| **Avg. Ticket** | `total_sales / frequency` |
+| **Pareto Cat.** | A / B / C classification |
+| **Channel** | Sales channel assignment |
+| **Last Purchase** | Days since most recent order |
+| **vs. Previous** | % change vs. equivalent prior period |
+| **Risk Flag** | ⚠️ if at-risk criteria met |
+
+**Generated using** `render_ranking_clientes(df_cli_filtrado, top_n=50)`
+
+You can sort by any column to identify:
+- Highest revenue customers (sort by Total Sales ↓)
+- Most loyal customers (sort by Frequency ↓)
+- At-risk accounts (sort by Last Purchase ↓)
+
+## At-Risk Customer Detection
+
+The system automatically flags customers at risk of churning:
+
+### Risk Criteria
+
+A customer is flagged if **any** of these conditions are met:
+
+<Steps>
+  <Step title="Inactivity Period">
+    No purchase in the last 30 days: `dias_desde_ultima_compra > 30`
+  </Step>
+  <Step title="Revenue Decline">
+    Sales down >30% vs. previous period: `vs_periodo_anterior < -0.30`
+  </Step>
+  <Step title="Frequency Drop">
+    Purchase frequency decreased significantly period-over-period
+  </Step>
+</Steps>
+
+**Calculation in** `kpi_clientes()` engine:
+```python
+kcli['flag_en_riesgo'] = (
+    (kcli['dias_desde_ultima_compra'] > 30) |
+    (kcli['vs_periodo_anterior'].fillna(0) < -0.30)
+)
+```
+
+### At-Risk Customer List
+
+A dedicated section shows only flagged customers with:
+- Customer name and category
+- Specific risk factor (inactivity / declining sales)
+- Days since last contact
+- Assigned salesperson
+- Suggested action
+
+<Warning>
+  Prioritize at-risk customers in categories A and B — losing a high-value customer has outsized impact on revenue.
+</Warning>
+
+## Growth Opportunities
+
+The system identifies customers with high growth potential:
+
+### Opportunity Criteria
+
+Customers flagged as opportunities meet:
+- **Pareto category B** (mid-tier, not yet top performers)
+- **Sales growth >20%** vs. previous period (`vs_periodo_anterior > 0.20`)
+- **Shows potential** to become A-category with focused effort
+
+### Opportunity List
+
+Displays promising customers with:
+- Current sales volume
+- Growth percentage
+- Current category and gap to reach A
+- Suggested actions (e.g., "Increase visit frequency", "Introduce premium products")
+
+<Tip>
+  Growing a B-category customer into A is often easier than acquiring a new customer. These opportunities should be high priority.
+</Tip>
+
+## Individual Customer Deep Dive
+
+Select any customer to see detailed analysis:
+
+### Customer Profile
+- Total sales in period
+- Purchase frequency (transaction count)
+- Pareto category and ranking position
+- Days since last purchase
+
+### 6-Month Evolution Chart
+
+Monthly sales trend for this specific customer:
+- Line chart showing purchase pattern
+- Identifies seasonality or concerning trends
+- Generated using `kpi_evolucion_mensual(df_cli_det, n_meses=6)` filtered to customer
+
+### Transaction History
+
+Table of individual orders from this customer showing:
+- Date, invoice number
+- Products purchased
+- Order value
+- Salesperson who handled the sale
+
+<Note>
+  Use the evolution chart to have data-driven conversations with customers: "I noticed your purchases typically peak in March — let's plan inventory for next year."
+</Note>
+
+## How to Use This View
+
+### Monthly Portfolio Review
+1. **Check Gini index trend** — Is concentration increasing or decreasing?
+2. **Review at-risk list** — Schedule visits for high-value flagged customers
+3. **Analyze new/lost customers** — Are we growing or shrinking the base?
+
+### Strategic Account Planning
+1. **Identify category A customers** — Ensure they have dedicated relationship management
+2. **Review scatter plot** — Find high-frequency/low-ticket customers for upselling
+3. **Check concentration** — If >85% revenue from A customers, diversify
+
+### Sales Team Coaching
+1. **Filter by salesperson** — Show each rep their at-risk accounts
+2. **Use opportunity list** — Assign B-category growth targets
+3. **Compare Pareto distribution** — Which salespeople have healthiest portfolios?
+
+## KPI Calculation Details
+
+**Customer KPIs** calculated by `kpi_clientes(df, cli_df, df_ant, fecha_hasta)`:
+
+```python
+# Aggregate by customer
+kcli = df.groupby('id_cliente').agg({
+    'importe_neto': 'sum',
+    'fecha': 'count',  # Frequency
+    'fecha': 'max'     # Last purchase date
+}).reset_index()
+
+# Calculate derived metrics
+kcli['ticket_promedio'] = kcli['importe_total'] / kcli['frecuencia_compra']
+kcli['dias_desde_ultima_compra'] = (fecha_hasta - kcli['fecha_ultima_compra']).dt.days
+
+# Assign Pareto categories
+kcli_sorted = kcli.sort_values('importe_total', ascending=False)
+kcli_sorted['pct_acumulado'] = kcli_sorted['importe_total'].cumsum() / kcli_sorted['importe_total'].sum()
+kcli_sorted['categoria_pareto'] = kcli_sorted['pct_acumulado'].apply(
+    lambda x: 'A' if x <= 0.80 else 'B' if x <= 0.95 else 'C'
+)
+
+# Compare vs previous period
+kcli_ant = df_ant.groupby('id_cliente')['importe_neto'].sum()
+kcli['vs_periodo_anterior'] = (
+    (kcli['importe_total'] - kcli_ant) / kcli_ant
+).fillna(0)
+```
+
+**Pareto concentration** calculated by `get_concentracion_pareto(kcli, "importe_total")` in `src/pareto.py`
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Sales Team Tracking" icon="user-tie" href="/features/sales-team-tracking">
+    Assign at-risk customers to specific salespeople
+  </Card>
+  <Card title="Product Analytics" icon="box" href="/features/product-analytics">
+    See which products these customers are buying
+  </Card>
+  <Card title="Alerts Center" icon="bell" href="/features/alerts-center">
+    Review customer-related alerts and opportunities
+  </Card>
+</CardGroup>

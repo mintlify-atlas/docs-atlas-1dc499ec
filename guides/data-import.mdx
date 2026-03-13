@@ -1,0 +1,280 @@
+---
+title: 'Data Import Guide'
+description: 'Learn how to import and manage your sales data in Visor KPI Comercial'
+icon: 'file-import'
+---
+
+## Overview
+
+Visor KPI Comercial loads sales data from an Excel file containing multiple sheets with information about sales transactions, sellers, clients, products, and objectives. The system automatically processes and validates this data to ensure accurate KPI calculations.
+
+<Note>
+The data loader uses Streamlit's caching mechanism (TTL: 1 hour) to optimize performance. Large datasets are automatically cached to avoid repeated processing.
+</Note>
+
+## Required File Format
+
+The system expects a single Excel file named `mock_data.xlsx` located at:
+
+```
+data/raw/mock_data.xlsx
+```
+
+### Excel Sheet Structure
+
+Your Excel file must contain exactly **5 sheets** with the following names and columns:
+
+<Steps>
+  <Step title="Ventas (Sales)">
+    Contains all sales transactions with the following required columns:
+    
+    - `fecha` (date) - Transaction date
+    - `id_venta` (string) - Unique sale ID
+    - `id_cliente` (string) - Client ID
+    - `id_vendedor` (string) - Seller ID
+    - `id_producto` (string) - Product ID
+    - `importe_neto` (numeric) - Net amount
+    - `importe_bruto` (numeric) - Gross amount
+    - `cantidad` (numeric) - Quantity sold
+    - `precio_unitario` (numeric) - Unit price
+    - `descuento_pct` (numeric) - Discount percentage (0.0 - 1.0)
+    
+    <Tip>
+    The system automatically calculates derived fields like `año` (year), `mes` (month), and `periodo` (period) from the `fecha` column.
+    </Tip>
+  </Step>
+
+  <Step title="Vendedores (Sellers)">
+    Master data for all sellers in your organization:
+    
+    - `id_vendedor` (string) - Unique seller ID
+    - `nombre_completo` (string) - Full name
+    - `zona` (string) - Sales zone (must match: "GBA Norte", "GBA Sur", or "Interior")
+    - `perfil` (string) - Seller profile/role
+    - `objetivo_mensual_base` (numeric) - Base monthly target
+    - `antiguedad_años` (numeric) - Years of seniority
+    - `activo` (boolean) - Active status (TRUE/FALSE)
+  </Step>
+
+  <Step title="Clientes (Clients)">
+    Client master data with assignment information:
+    
+    - `id_cliente` (string) - Unique client ID
+    - `razon_social` (string) - Business name
+    - `canal` (string) - Sales channel ("Canal Tradicional", "Supermercadismo", "Mayorista", or "HoReCa")
+    - `zona` (string) - Geographic zone
+    - `id_vendedor_asignado` (string) - Assigned seller ID
+    - `fecha_alta` (date) - Registration date
+    - `objetivo_mensual_cliente` (numeric) - Client monthly target
+    - `activo` (boolean) - Active status
+  </Step>
+
+  <Step title="Productos (Products)">
+    Product catalog with pricing information:
+    
+    - `id_producto` (string) - Unique product ID
+    - `descripcion` (string) - Product description
+    - `categoria` (string) - Product category
+    - `precio_unitario` (numeric) - List unit price
+    - `costo_unitario` (numeric) - Unit cost
+    - `activo` (boolean) - Active status
+  </Step>
+
+  <Step title="Objetivos (Objectives)">
+    Monthly sales targets by seller:
+    
+    - `id_vendedor` (string) - Seller ID
+    - `año` (numeric) - Year
+    - `mes` (numeric) - Month (1-12)
+    - `objetivo` (numeric) - Target amount
+    
+    <Note>
+    If your sheet doesn't have a `periodo` column, the system will automatically create it by combining `año` and `mes` fields.
+    </Note>
+  </Step>
+</Steps>
+
+## Data Validation Rules
+
+### Automatic Data Cleaning
+
+The system applies these transformations automatically:
+
+<AccordionGroup>
+  <Accordion title="Numeric Field Conversion">
+    All numeric columns are converted using `pd.to_numeric()` with error coercion. Invalid values become `0` or `NaN` as appropriate.
+    
+    **Fields affected:**
+    - All monetary amounts (importe_neto, importe_bruto)
+    - Quantities and prices
+    - Objectives and targets
+    - Cost calculations
+  </Accordion>
+
+  <Accordion title="Date Parsing">
+    Date fields are parsed using `pd.to_datetime()`. The system recognizes most common date formats.
+    
+    **Date fields:**
+    - `fecha` in Ventas sheet
+    - `fecha_alta` in Clientes sheet
+    - Auto-generated `periodo` in Objetivos sheet
+    
+    <Tip>
+    Use ISO format (YYYY-MM-DD) or Excel date format for best compatibility.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Boolean Flags">
+    Boolean columns (`activo`) are converted to true Python booleans. Accepts: TRUE/FALSE, 1/0, Yes/No.
+  </Accordion>
+
+  <Accordion title="Margin Calculations">
+    The master dataset automatically calculates profit margins:
+    
+    ```python
+    margen_neto = importe_neto - (costo_catalogo / precio_catalogo * importe_neto)
+    margen_pct = (margen_neto / importe_neto).clip(0, 1)
+    ```
+    
+    These fields are available for filtering and KPI analysis.
+  </Accordion>
+</AccordionGroup>
+
+## How to Update Your Data
+
+<Steps>
+  <Step title="Prepare Your Excel File">
+    Ensure your Excel file follows the exact structure described above with all 5 required sheets.
+    
+    <Warning>
+    Sheet names are case-sensitive. Use exact names: "Ventas", "Vendedores", "Clientes", "Productos", "Objetivos".
+    </Warning>
+  </Step>
+
+  <Step title="Replace the Data File">
+    Copy your updated Excel file to:
+    
+    ```bash
+    source/visor_kpi/data/raw/mock_data.xlsx
+    ```
+    
+    Replace the existing file completely.
+  </Step>
+
+  <Step title="Clear Cache and Reload">
+    The system caches data for 1 hour (3600 seconds). To force immediate reload:
+    
+    1. Restart the Streamlit application, OR
+    2. Wait for the cache TTL to expire (shown in sidebar)
+    3. Use the browser refresh (F5) to reload the dashboard
+    
+    <Tip>
+    The sidebar shows "Última actualización" (Last Update) with the current date to help you verify data freshness.
+    </Tip>
+  </Step>
+</Steps>
+
+## Master Dataset (get_master_df)
+
+The system creates a unified master dataset by joining all sheets. This master dataset:
+
+- Merges Ventas with Vendedores, Clientes, and Productos
+- Renames columns to avoid conflicts (e.g., `zona_vendedor` vs `zona_cliente`)
+- Calculates derived metrics (margins, percentages)
+- Is cached for performance (referenced in: `src/data_loader.py:89`)
+
+### Available Fields in Master Dataset
+
+After joining, these fields are available for filtering and analysis:
+
+| Field | Source | Description |
+|-------|--------|-------------|
+| `nombre_vendedor` | Vendedores | Seller's full name |
+| `zona_vendedor` | Vendedores | Seller's assigned zone |
+| `perfil` | Vendedores | Seller profile |
+| `razon_social` | Clientes | Client business name |
+| `canal` | Clientes | Sales channel |
+| `zona_cliente` | Clientes | Client's zone |
+| `cliente_activo` | Clientes | Client active flag |
+| `descripcion` | Productos | Product description |
+| `categoria` | Productos | Product category |
+| `margen_neto` | Calculated | Net profit margin |
+| `margen_pct` | Calculated | Margin percentage |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Error: No se encontró el archivo de datos">
+    **Cause:** The Excel file is missing from the expected location.
+    
+    **Solution:**
+    1. Check that `mock_data.xlsx` exists in `data/raw/` directory
+    2. Verify the file path matches: `source/visor_kpi/data/raw/mock_data.xlsx`
+    3. Run the mock data generator if needed:
+       ```bash
+       python data/mock/generate_mock_data.py
+       ```
+  </Accordion>
+
+  <Accordion title="Data Appears Incomplete or Incorrect">
+    **Common causes:**
+    - Missing required columns in one of the sheets
+    - Data type mismatches (text in numeric fields)
+    - Missing relationships (e.g., `id_vendedor` in Ventas doesn't exist in Vendedores)
+    
+    **Solution:**
+    1. Validate all required columns are present
+    2. Check for NULL values in ID fields
+    3. Ensure foreign key relationships are valid
+    4. Review data types match specifications
+  </Accordion>
+
+  <Accordion title="KPIs Show Zero or Missing Values">
+    **Possible causes:**
+    - No data for the selected date range
+    - Filters are too restrictive
+    - Objectives sheet is missing or incomplete
+    
+    **Solution:**
+    1. Clear all filters using "🔄 Limpiar filtros" button
+    2. Select a broader date range
+    3. Verify Objetivos sheet has targets for the period
+    4. Check that seller IDs in Objetivos match those in Vendedores
+  </Accordion>
+
+  <Accordion title="Performance Issues with Large Datasets">
+    **For datasets with 100,000+ transactions:**
+    
+    1. The cache TTL is set to 1 hour (`ttl=3600`)
+    2. Consider splitting data by year if historical data is very large
+    3. Use filters to limit data processing scope
+    4. Increase cache TTL in `src/data_loader.py:23` if needed
+    
+    <Note>
+    The system is optimized for typical mid-market sales volumes (10,000-50,000 transactions per month).
+    </Note>
+  </Accordion>
+</AccordionGroup>
+
+## Data Security Best Practices
+
+<Tip>
+Never commit sensitive sales data to version control. The `mock_data.xlsx` file should be listed in `.gitignore`.
+</Tip>
+
+- Store production data outside the repository
+- Use environment variables for data paths in production
+- Implement row-level security if deploying for multiple user roles
+- Regularly backup your data files
+- Validate data integrity after imports
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Filtering Data" icon="filter" href="/guides/filtering-data">
+    Learn how to use filters to analyze specific segments
+  </Card>
+  <Card title="Interpreting KPIs" icon="chart-line" href="/guides/interpreting-kpis">
+    Understand what each KPI means and how it's calculated
+  </Card>
+</CardGroup>

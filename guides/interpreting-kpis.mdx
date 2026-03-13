@@ -1,0 +1,644 @@
+---
+title: 'Interpreting KPIs Guide'
+description: 'Understand what each KPI means, how it is calculated, and how to act on the insights'
+icon: 'chart-line'
+---
+
+## Overview
+
+Visor KPI Comercial tracks multiple Key Performance Indicators (KPIs) across sales, margins, client coverage, and seller performance. This guide explains what each metric means, how it's calculated, and what actions to take based on the values you see.
+
+<Note>
+All KPIs are calculated from the filtered dataset. Always verify your active filters before interpreting results.
+</Note>
+
+## Sales Performance KPIs
+
+### Importe Total (Total Sales)
+
+The sum of all net sales amounts in the selected period.
+
+**Calculation:**
+```python
+importe_total = df["importe_neto"].sum()
+```
+
+**Reference:** `src/kpi_engine.py:34`
+
+**Displayed as:** Currency format with Argentine style (e.g., $1.284.500)
+
+<Accordion title="How to Interpret">
+  **Green indicators:** Sales are meeting or exceeding expectations
+  
+  **Yellow indicators:** Sales are 80-99% of target
+  
+  **Red indicators:** Sales are below 80% of target
+  
+  **Actions to take:**
+  - Compare against `objetivo_total` to assess performance
+  - Review `importe_vs_anterior` to understand growth trends
+  - If red: Review alerts for specific problem areas
+  - If green: Identify what's working and replicate it
+</Accordion>
+
+### Importe vs. Anterior (Sales vs. Previous Period)
+
+Percentage change compared to the equivalent previous period.
+
+**Calculation:**
+```python
+if imp_ant > 0:
+    importe_vs_ant = (importe_total - imp_ant) / imp_ant
+```
+
+**Reference:** `src/kpi_engine.py:50-55`
+
+**Displayed as:** 
+- ▲ +8.2% (growth - green)
+- ▼ -3.1% (decline - red)
+- — 0.0% (flat - gray)
+
+<Accordion title="Understanding Growth vs. Decline">
+  **Thresholds (config.py:44-45):**
+  - **Critical decline:** < -20% (triggers alerts)
+  - **Notable growth:** > +15% (opportunity to highlight)
+  
+  **Context matters:**
+  - Seasonal businesses: Compare same month last year
+  - New sellers: May show high % growth on small base
+  - Market changes: Consider external factors
+  
+  **Actions:**
+  - **Growth > 15%:** Document success factors, share with team
+  - **Decline > 20%:** Immediate investigation required, check alerts
+  - **Flat (±5%):** Normal variation, monitor for trends
+</Accordion>
+
+### Cumplimiento (Objective Fulfillment)
+
+Percentage of sales target achieved.
+
+**Calculation:**
+```python
+cumplimiento = importe_total / objetivo_total if objetivo_total > 0 else None
+```
+
+**Reference:** `src/kpi_engine.py:48`
+
+**Color coding (config.py:38-42):**
+- 🟢 Green: ≥ 100% (`cumplimiento_ok`)
+- 🟡 Yellow: 80-99% (`cumplimiento_warning`)
+- 🔴 Red: < 80%
+
+<Accordion title="Objective Setting Best Practices">
+  **Realistic objectives:**
+  - Based on historical performance
+  - Adjusted for market conditions
+  - Consider seller experience and territory
+  
+  **If cumplimiento consistently > 120%:**
+  - Objectives may be too low
+  - Consider raising targets for next period
+  - Risk: complacency and missed opportunities
+  
+  **If cumplimiento consistently < 70%:**
+  - Objectives may be too aggressive
+  - Review resource allocation
+  - Provide additional support or training
+  - Consider territory redistribution
+</Accordion>
+
+### Transacciones (Transaction Count)
+
+Total number of sales transactions.
+
+**Calculation:**
+```python
+n_transacciones = len(df)
+```
+
+**Reference:** `src/kpi_engine.py:35`
+
+<Tip>
+Transaction count helps identify if sales changes are driven by volume or by ticket size. Compare with `ticket_promedio` for complete picture.
+</Tip>
+
+### Ticket Promedio (Average Ticket)
+
+Average sales amount per unique client.
+
+**Calculation:**
+```python
+ticket_prom = importe_total / clientes_unicos if clientes_unicos > 0 else 0
+```
+
+**Reference:** `src/kpi_engine.py:37`
+
+<AccordionGroup>
+  <Accordion title="Rising Ticket Size">
+    **Possible causes:**
+    - Successful upselling
+    - Product mix shift to higher-value items
+    - Price increases
+    - Loss of small clients (check client count)
+    
+    **Validation:**
+    - Check if client count decreased (may indicate losing small buyers)
+    - Review product mix on Productos page
+    - Compare channel distribution
+  </Accordion>
+  
+  <Accordion title="Falling Ticket Size">
+    **Possible causes:**
+    - Discounting pressure
+    - Shift to lower-margin products
+    - New small clients acquired
+    - Economic pressure on clients
+    
+    **Actions:**
+    - Review discount percentages in raw data
+    - Check margin KPIs (may be more concerning than volume)
+    - Investigate competitive pressure
+    - Review Pareto analysis (may be over-serving C clients)
+  </Accordion>
+</AccordionGroup>
+
+## Margin KPIs
+
+### Margen Bruto Total (Total Gross Margin)
+
+Total profit after subtracting cost of goods sold.
+
+**Calculation:**
+```python
+margen_total = df["margen_neto"].sum()
+# Where margen_neto = importe_neto - (costo_catalogo / precio_catalogo * importe_neto)
+```
+
+**References:** 
+- Margin per transaction: `src/data_loader.py:121-122`
+- Total margin: `src/kpi_engine.py:78`
+
+<Warning>
+Margin calculations use catalog costs and prices. Actual margins may vary if discounts or special pricing are not reflected in the cost/price fields.
+</Warning>
+
+### Margen % Promedio (Average Margin Percentage)
+
+Overall margin as percentage of sales.
+
+**Calculation:**
+```python
+margen_pct = margen_total / importe_total if importe_total > 0 else 0
+```
+
+**Reference:** `src/kpi_engine.py:80`
+
+**Typical ranges by channel:**
+- Mayorista (Wholesale): 10-20%
+- Supermercadismo: 15-25%
+- Canal Tradicional: 20-35%
+- HoReCa: 25-40%
+
+<Accordion title="Margin Analysis">
+  **If margin % is declining:**
+  1. Check discount trends (descuento_pct in data)
+  2. Review product mix (Productos page, category breakdown)
+  3. Verify cost data is current
+  4. Investigate competitive pressure
+  5. Consider channel shift (compare canales_sel filter)
+  
+  **If margin % is stable but margin $ is declining:**
+  - This is a volume problem, not a pricing problem
+  - Focus on sales KPIs and client acquisition
+  - Review lost/at-risk clients (Clientes page)
+  
+  **Target setting:**
+  - Set minimum acceptable margin % by channel
+  - Alert on transactions below threshold
+  - Balance volume and margin in seller incentives
+</Accordion>
+
+### Margen vs. Anterior (Margin vs. Previous Period)
+
+Percentage change in total margin.
+
+**Calculation:**
+```python
+if margen_ant > 0:
+    margen_vs_ant = (margen_total - margen_ant) / margen_ant
+```
+
+**Reference:** `src/kpi_engine.py:83-86`
+
+<Note>
+Margin growth is more important than sales growth. A company can grow sales while destroying value if margins decline faster.
+</Note>
+
+## Client Coverage KPIs
+
+### Clientes Activos Período (Active Clients This Period)
+
+Number of clients who made at least one purchase.
+
+**Calculation:**
+```python
+compraron = set(df["id_cliente"].unique()) if not df.empty else set()
+n_activos_periodo = len(compraron & set(clientes_activos_total))
+```
+
+**Reference:** `src/kpi_engine.py:107-108`
+
+### Cobertura % (Coverage Percentage)
+
+Percentage of total active clients who purchased in the period.
+
+**Calculation:**
+```python
+cobertura = n_activos_periodo / n_total if n_total > 0 else 0
+```
+
+**Reference:** `src/kpi_engine.py:109`
+
+**Benchmarks:**
+- **Monthly coverage:** 60-80% is typical
+- **Weekly coverage:** 20-30% is typical
+- **Quarterly coverage:** 85-95% is expected
+
+<Accordion title="Improving Coverage">
+  **Low coverage indicators:**
+  - Monthly coverage < 50%: Insufficient visit frequency
+  - Declining coverage trend: Clients becoming inactive
+  - High coverage in one zone, low in another: Territory management issue
+  
+  **Actions to improve:**
+  1. Review visit frequency policies
+  2. Use Alertas page to identify clients at risk
+  3. Prioritize Pareto A and B clients for re-engagement
+  4. Investigate if inactive clients shifted to competitors
+  5. Consider territory rebalancing if sellers are overloaded
+  
+  **Monitor:**
+  - `clientes_perdidos`: Clients who bought before but not now
+  - `dias_desde_ultima_compra`: On Clientes page, flag > 30 days
+</Accordion>
+
+### Clientes Perdidos (Lost Clients)
+
+Clients who purchased in the previous period but not in the current period.
+
+**Calculation:**
+```python
+n_perdidos = len(compraron_anterior - compraron)
+```
+
+**Reference:** `src/kpi_engine.py:116`
+
+<Warning>
+High number of lost clients (> 10% of active base per month) is a critical warning sign requiring immediate action.
+</Warning>
+
+### Clientes Nuevos (New Clients)
+
+Clients making their first purchase in the current period.
+
+**Calculation:**
+```python
+n_nuevos = len(compraron - todos_anteriores)
+```
+
+**Reference:** `src/kpi_engine.py:124`
+
+<Tip>
+**Healthy ratio:** New clients should equal or exceed lost clients. If new < lost, your client base is shrinking.
+</Tip>
+
+### Clientes Recuperados (Recovered Clients)
+
+Previously inactive clients who purchased again.
+
+**Reference:** `src/kpi_engine.py:117`
+
+## Seller Performance KPIs
+
+### Cumplimiento por Vendedor (Seller Fulfillment)
+
+Each seller's achievement vs. their individual target.
+
+**Calculation:**
+```python
+cumplimiento_pct = importe_total / objetivo if objetivo > 0 else None
+```
+
+**Reference:** `src/kpi_engine.py:171-173`
+
+**Available on:** Vendedores page, individual seller cards
+
+<AccordionGroup>
+  <Accordion title="Seller Performance Tiers">
+    **🟢 Top Performers (≥100%):**
+    - Recognize and reward
+    - Document best practices
+    - Consider as mentors for struggling sellers
+    - May be ready for larger territory or higher targets
+    
+    **🟡 At Risk (80-99%):**
+    - Need support to reach target
+    - Review client portfolio for opportunities
+    - Check visit frequency and activity levels
+    - Provide coaching on closing techniques
+    
+    **🔴 Critical (&lt;80%):**
+    - Immediate intervention required
+    - Check if alert ALT001 triggered (less than 65%)
+    - Review whether territory is viable
+    - May need training, resources, or territory adjustment
+  </Accordion>
+  
+  <Accordion title="Seller Ranking System">
+    The system maintains dynamic rankings:
+    
+    **Fields available:**
+    - `ranking_actual`: Current period ranking
+    - `ranking_anterior`: Previous period ranking  
+    - `delta_ranking`: Change in position
+    
+    **Reference:** `src/kpi_engine.py:195-205`
+    
+    **Using rankings:**
+    - Celebrate sellers moving up
+    - Investigate sellers falling in rankings
+    - Consider: Is decline temporary or trend?
+    - Don't over-emphasize rankings (can demotivate)
+  </Accordion>
+</AccordionGroup>
+
+### Ticket Promedio por Vendedor (Seller Average Ticket)
+
+**Calculation:**
+```python
+ticket_promedio = importe_total / clientes_únicos if clientes_únicos > 0 else 0
+```
+
+**Reference:** `src/kpi_engine.py:176-178`
+
+<Tip>
+Compare seller average tickets within the same zone and channel mix for fair evaluation. Different territories have different client profiles.
+</Tip>
+
+## Product Performance KPIs
+
+### Pareto Classification (A, B, C)
+
+Classifies products (or clients) by their contribution to total sales.
+
+**Calculation:**
+```python
+# Sort by sales descending, calculate cumulative percentage
+if cumulative_pct <= 0.80: categoria = "A"
+elif cumulative_pct <= 0.95: categoria = "B"
+else: categoria = "C"
+```
+
+**Thresholds (config.py:47-48):**
+- **Category A:** Top items contributing first 80% of sales
+- **Category B:** Items contributing 80-95% of sales
+- **Category C:** Items contributing final 5% of sales
+
+**References:**
+- Configuration: `config.py:47-48`
+- Calculation: `src/pareto.py` (called from `src/kpi_engine.py:240, 298`)
+
+<AccordionGroup>
+  <Accordion title="Managing Category A Products">
+    **Characteristics:**
+    - ~20% of SKUs
+    - 80% of revenue
+    - Critical to business success
+    
+    **Management priorities:**
+    - Never stock out (maintain safety stock)
+    - Monitor closely for declines
+    - Price strategically (high visibility)
+    - Promote actively
+    - Train all sellers on these products
+    
+    **Alert:** Category A product without sales in 60 days is critical (ALT004)
+  </Accordion>
+  
+  <Accordion title="Managing Category B Products">
+    **Characteristics:**
+    - ~30% of SKUs
+    - 15% of revenue
+    - Important supporting products
+    
+    **Management priorities:**
+    - Maintain availability
+    - Cross-sell with A products
+    - Growth opportunity if promoted
+    - Monitor for potential upgrade to A
+    
+    **Opportunity:** B products growing >30% may become A (ALT006 for clients, same logic applies)
+  </Accordion>
+  
+  <Accordion title="Managing Category C Products">
+    **Characteristics:**
+    - ~50% of SKUs
+    - 5% of revenue
+    - Long tail items
+    
+    **Management priorities:**
+    - Consider discontinuation if no strategic value
+    - Reduce inventory holding
+    - Avoid active promotion (resource waste)
+    - May serve niche needs
+    
+    **Question:** Does the cost of carrying C products justify the revenue?
+  </Accordion>
+</AccordionGroup>
+
+### Unidades Vendidas (Units Sold)
+
+**Calculation:**
+```python
+unidades_vendidas = df.groupby("id_producto")["cantidad"].sum()
+```
+
+**Reference:** `src/kpi_engine.py:230`
+
+<Note>
+Compare units sold with revenue contribution. High-unit, low-revenue products may indicate pricing issues or unnecessary product complexity.
+</Note>
+
+## Client-Specific KPIs
+
+### Frecuencia de Compra (Purchase Frequency)
+
+Number of transactions per client in the period.
+
+**Calculation:**
+```python
+frecuencia_compra = df.groupby("id_cliente")["id_venta"].count()
+```
+
+**Reference:** `src/kpi_engine.py:277`
+
+**Typical patterns by channel:**
+- **HoReCa:** 1-4 orders per month
+- **Canal Tradicional:** 2-8 orders per month
+- **Supermercadismo:** 0.5-2 orders per month (larger orders)
+- **Mayorista:** 1-3 orders per month (larger orders)
+
+### Días Desde Última Compra (Days Since Last Purchase)
+
+**Calculation:**
+```python
+dias_desde_ultima_compra = (fecha_hasta - ultima_compra).dt.days
+```
+
+**Reference:** `src/kpi_engine.py:286`
+
+**Risk thresholds:**
+- **> 45 days:** Alert ALT002 triggers (client at risk)
+- **> 30 days for Pareto A/B:** Flag as `flag_en_riesgo` (reference: `src/kpi_engine.py:315-318`)
+- **> 60 days:** Likely lost customer
+
+<Warning>
+Pareto A clients inactive for >30 days require immediate attention. These are your most valuable relationships.
+</Warning>
+
+### Cliente vs. Período Anterior (Client Growth)
+
+Sales change per client.
+
+**Calculation:**
+```python
+vs_periodo_anterior = (importe_actual - importe_anterior) / importe_anterior
+```
+
+**Reference:** `src/kpi_engine.py:306-312`
+
+**Alert triggers:**
+- **Category A client declining >25%:** Critical alert ALT003
+- **Category B client growing >30%:** Opportunity alert ALT006
+
+## Understanding KPI Relationships
+
+### The Sales Performance Chain
+
+```
+ Coverage % × Frequency × Ticket Size = Total Sales
+     ↓            ↓            ↓
+  (clients)  (transactions) ($/transaction)
+```
+
+**To grow sales, improve one or more:**
+1. **Coverage:** Activate more clients from your base
+2. **Frequency:** Encourage existing clients to order more often
+3. **Ticket Size:** Increase value per transaction (upselling/cross-selling)
+
+### The Profitability Equation
+
+```
+Total Sales × Margin % = Gross Profit
+```
+
+<Tip>
+A 5% improvement in margin has the same profit impact as a 20% increase in sales (at 25% margin). Don't sacrifice margin unnecessarily.
+</Tip>
+
+## Taking Action on KPIs
+
+<Steps>
+  <Step title="Identify the Problem">
+    Use color coding to spot issues:
+    - 🔴 Red KPIs: Immediate problems
+    - 🟡 Yellow KPIs: Warning signs
+    - Declining trends: Even if green, watch for deterioration
+  </Step>
+
+  <Step title="Drill Down">
+    Use filters to isolate:
+    - Which zone has the issue?
+    - Which sellers are affected?
+    - Which clients or products are declining?
+    - Is it across all channels or specific ones?
+  </Step>
+
+  <Step title="Check Alerts">
+    Navigate to Alertas page:
+    - Review alerts related to the KPI issue
+    - Note specific entities flagged (sellers, clients, products)
+    - Review suggested actions
+  </Step>
+
+  <Step title="Implement Actions">
+    Based on your analysis:
+    - Assign specific action items to sellers/managers
+    - Set deadlines for follow-up
+    - Document the plan
+    - Schedule review meeting
+  </Step>
+
+  <Step title="Monitor Progress">
+    Return to the dashboard:
+    - Check KPIs daily/weekly
+    - Verify improvement trends
+    - Adjust tactics if not improving
+    - Celebrate wins when KPIs improve
+  </Step>
+</Steps>
+
+## Best Practices for KPI Review
+
+<CardGroup cols={2}>
+  <Card title="Daily Review" icon="calendar-day">
+    **Morning check (5 minutes):**
+    - Este mes: Total sales and cumplimiento %
+    - Critical alerts (🔴)
+    - Sellers in red zone
+    
+    **Purpose:** Spot emerging issues early
+  </Card>
+  
+  <Card title="Weekly Review" icon="calendar-week">
+    **Team meeting (30 minutes):**
+    - Review Este mes KPIs
+    - Discuss sellers needing support
+    - Review client coverage
+    - Assign actions for week ahead
+    
+    **Purpose:** Tactical adjustments
+  </Card>
+  
+  <Card title="Monthly Review" icon="calendar">
+    **End-of-month analysis (90 minutes):**
+    - Complete Mes anterior data
+    - All KPIs and trends
+    - Seller rankings and recognition
+    - Strategic planning
+    
+    **Purpose:** Performance review and planning
+  </Card>
+  
+  <Card title="Quarterly Review" icon="calendar-days">
+    **Strategic session (half day):**
+    - Último trimestre analysis
+    - Year-over-year comparisons
+    - Market trends and external factors
+    - Territory and resource planning
+    
+    **Purpose:** Strategic direction
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Using Alerts" icon="bell" href="/guides/using-alerts">
+    Learn how the alert system identifies issues automatically
+  </Card>
+  <Card title="Filtering Data" icon="filter" href="/guides/filtering-data">
+    Master filtering to drill down into specific issues
+  </Card>
+</CardGroup>

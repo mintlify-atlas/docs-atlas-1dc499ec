@@ -1,0 +1,456 @@
+---
+title: 'Filtering Data Guide'
+description: 'Master the filtering system to analyze specific segments of your sales data'
+icon: 'filter'
+---
+
+## Overview
+
+The filtering system in Visor KPI Comercial allows you to slice and analyze your sales data by date ranges, sales zones, sellers, and channels. All filters are applied globally through the sidebar and persist across different pages during your session.
+
+<Tip>
+Filters are stored in `st.session_state`, meaning they persist as you navigate between different dashboard pages. This allows you to maintain context while exploring different views.
+</Tip>
+
+## Available Filters
+
+### Date Range Filter (Período)
+
+The most fundamental filter. All KPI calculations are based on the selected date range.
+
+<Steps>
+  <Step title="Select a Preset Period">
+    Choose from predefined periods in the dropdown:
+    
+    - **Este mes** (This month) - From the 1st of current month to today
+    - **Mes anterior** (Previous month) - Complete previous month
+    - **Último trimestre** (Last quarter) - Last 3 months from today
+    - **Este año** (This year) - From January 1st to today
+    - **Año anterior** (Previous year) - Complete previous calendar year
+    - **Personalizado** (Custom) - Define your own date range
+    
+    <Note>
+    Default selection: **Este mes** (loads automatically on startup)
+    </Note>
+  </Step>
+
+  <Step title="Use Custom Date Range">
+    Select "Personalizado" to show two date pickers:
+    
+    - **Desde** (From) - Start date
+    - **Hasta** (To) - End date
+    
+    The selected date range is displayed in DD/MM/YYYY format below the selector for confirmation.
+  </Step>
+</Steps>
+
+### Zone Filter (Zona)
+
+Filter by geographic sales zones. Available zones are defined in `config.py:56`:
+
+- **GBA Norte** (Greater Buenos Aires North)
+- **GBA Sur** (Greater Buenos Aires South)  
+- **Interior** (Interior provinces)
+
+<Accordion title="How Zone Filtering Works">
+  The zone filter uses the `zona_vendedor` field from the master dataset. When you select one or more zones:
+  
+  1. Only transactions from sellers in those zones are included
+  2. The vendor filter automatically updates to show only sellers from selected zones
+  3. All KPIs recalculate based on the filtered dataset
+  
+  **Source code reference:** `src/data_loader.py:155-156`
+  
+  ```python
+  if zonas:
+      df = df[df["zona_vendedor"].isin(zonas)]
+  ```
+</Accordion>
+
+<Tip>
+Leave the zone filter empty to analyze all zones (default behavior).
+</Tip>
+
+### Seller Filter (Vendedor)
+
+Filter by specific sellers. This multiselect shows active sellers only.
+
+<Steps>
+  <Step title="View Available Sellers">
+    Click the Vendedor dropdown to see a list formatted as:
+    
+    ```
+    [Seller Name] ([Zone])
+    ```
+    
+    Example: `María González (GBA Norte)`
+    
+    <Note>
+    Only **active** sellers (`activo = TRUE`) appear in the list. Inactive sellers are automatically excluded.
+    </Note>
+  </Step>
+
+  <Step title="Select Multiple Sellers">
+    Choose one or more sellers to analyze:
+    
+    - Select individual sellers to compare their performance
+    - Select all sellers from a specific zone for team analysis
+    - Leave empty to include all sellers
+  </Step>
+
+  <Step title="Dynamic Filtering by Zone">
+    If you've already selected zones, the seller list automatically filters to show only sellers from those zones.
+    
+    **Implementation:** `components/filters.py:143-147`
+    
+    ```python
+    if zonas_sel:
+        opciones_vend = {
+            k: v for k, v in opciones_vend.items()
+            if any(z in k for z in zonas_sel)
+        }
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+The Vendedor filter is hidden on the Vendedores page (`mostrar_vendedor=False`) since that page provides its own seller selection mechanism.
+</Warning>
+
+### Channel Filter (Canal)
+
+Filter by sales channel. Available channels are defined in `config.py:57`:
+
+- **Canal Tradicional** (Traditional channel)
+- **Supermercadismo** (Supermarkets)
+- **Mayorista** (Wholesale)
+- **HoReCa** (Hotels, Restaurants, Catering)
+
+<Accordion title="Channel Filter Logic">
+  The channel filter uses the `canal` field from clients (inherited in the master dataset). When applied:
+  
+  1. Only transactions with clients in the selected channels are included
+  2. Affects all downstream KPIs (sales, objectives, coverage)
+  3. Multiple channels can be selected simultaneously
+  
+  **Source code reference:** `src/data_loader.py:158-160`
+  
+  ```python
+  if canales:
+      df = df[df["canal"].isin(canales)]
+  ```
+</Accordion>
+
+## Filter Combinations
+
+### How Filters Work Together
+
+Filters are applied using **AND logic**. All selected criteria must be met:
+
+```python
+# Pseudo-logic of filter application
+Filtered Data = Raw Data 
+  WHERE fecha >= fecha_desde 
+  AND fecha <= fecha_hasta
+  AND (vendedores is empty OR id_vendedor IN vendedores)
+  AND (zonas is empty OR zona_vendedor IN zonas)
+  AND (canales is empty OR canal IN canales)
+```
+
+### Common Filter Scenarios
+
+<AccordionGroup>
+  <Accordion title="Analyze a Single Seller's Performance">
+    **Filters to apply:**
+    - Period: Este mes
+    - Vendedor: Select one seller
+    - Zone: Leave empty (will auto-select based on seller)
+    - Channel: Leave empty (analyze all channels)
+    
+    **Best pages to view:**
+    - Vendedores page (detailed seller KPIs)
+    - Clientes page (see the seller's client portfolio)
+  </Accordion>
+
+  <Accordion title="Compare Zones Performance">
+    **Filters to apply:**
+    - Period: Último trimestre
+    - Zone: Leave empty initially, then test each zone individually
+    - Vendedor: Leave empty
+    - Channel: Leave empty
+    
+    **Workflow:**
+    1. View Gerencia page with no zone filter (see totals)
+    2. Select "GBA Norte" - observe KPIs
+    3. Change to "GBA Sur" - compare
+    4. Change to "Interior" - compare
+    
+    <Tip>
+    Use the sidebar date display and "última actualización" to verify you're comparing the same period.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Analyze a Specific Channel">
+    **Filters to apply:**
+    - Period: Mes anterior (complete month for clean data)
+    - Channel: Select one (e.g., "Supermercadismo")
+    - Zone: Leave empty
+    - Vendedor: Leave empty
+    
+    **Best pages to view:**
+    - Clientes page (see channel-specific client behavior)
+    - Productos page (identify top products for that channel)
+    - Alertas page (channel-specific alerts)
+  </Accordion>
+
+  <Accordion title="Year-over-Year Comparison">
+    **Filters to apply (First view):**
+    - Period: Este año
+    - All other filters: Leave empty
+    
+    **Then change to (Second view):**
+    - Period: Año anterior
+    - All other filters: Leave empty
+    
+    **Manual comparison:**
+    Compare total sales, cumplimiento %, and trends manually. The dashboard shows vs. previous period automatically for some metrics.
+    
+    <Note>
+    The system automatically calculates the equivalent previous period for delta calculations. See `config.py:188-193` for the logic.
+    </Note>
+  </Accordion>
+</AccordionGroup>
+
+## Filter Persistence
+
+### Session State Storage
+
+Filters are stored in Streamlit's session state with these keys:
+
+| Session State Key | Content | Default Value |
+|------------------|---------|---------------|
+| `periodo_sel` | Selected period name | "Este mes" |
+| `fecha_desde` | Start date | 1st of current month |
+| `fecha_hasta` | End date | Today |
+| `vendedores_sel` | List of seller IDs | `[]` (empty) |
+| `zonas_sel` | List of zone names | `[]` (empty) |
+| `canales_sel` | List of channel names | `[]` (empty) |
+
+**Reference:** `components/filters.py:16-34`
+
+### Clear All Filters
+
+Click the **"🔄 Limpiar filtros"** button at the bottom of the sidebar to reset all filters to their default values:
+
+1. Period resets to "Este mes"
+2. All multiselect filters clear
+3. Date range resets to current month
+4. Page automatically reloads with fresh data
+
+**Implementation:** `components/filters.py:182-190`
+
+<Warning>
+Clearing filters will trigger a page reload (`st.rerun()`), which may briefly interrupt your workflow. Save any insights before clearing.
+</Warning>
+
+## Advanced Filtering Techniques
+
+### Progressive Filtering Strategy
+
+<Steps>
+  <Step title="Start Broad">
+    Begin with no filters to see the complete picture:
+    - Total sales across all dimensions
+    - Overall team performance
+    - Company-wide trends
+  </Step>
+
+  <Step title="Add One Filter at a Time">
+    Add filters progressively to identify issues:
+    
+    1. Add zone filter → Identify which zone underperforms
+    2. Keep zone, add channel → Identify which channel is problematic
+    3. Keep both, add specific sellers → Pinpoint individual issues
+  </Step>
+
+  <Step title="Use Alerts Page to Guide Filtering">
+    Navigate to the Alertas page first:
+    - Review critical alerts (🔴)
+    - Note which sellers, clients, or products are flagged
+    - Apply relevant filters to investigate those specific entities
+  </Step>
+</Steps>
+
+### Time-Based Analysis Patterns
+
+<Accordion title="Month-to-Date Tracking">
+  **Use case:** Monitor current month progress
+  
+  **Filter setup:**
+  - Period: "Este mes"
+  - Review daily as the month progresses
+  - Compare `cumplimiento_pct` against target
+  
+  **KPIs to watch:**
+  - Current sales vs. objective (home page)
+  - Sellers in red zone (Vendedores page)
+  - Active alerts (Alertas page)
+</Accordion>
+
+<Accordion title="Monthly Retrospective">
+  **Use case:** End-of-month performance review
+  
+  **Filter setup:**
+  - Period: "Mes anterior" (complete month data)
+  - No other filters initially
+  
+  **Workflow:**
+  1. Review executive summary (Gerencia page)
+  2. Identify underperforming zones
+  3. Drill into specific sellers
+  4. Review lost/at-risk clients
+  5. Document lessons learned
+</Accordion>
+
+<Accordion title="Quarterly Business Review">
+  **Use case:** Strategic quarterly analysis
+  
+  **Filter setup:**
+  - Period: "Último trimestre"
+  - Analyze by zone and channel separately
+  
+  **Analysis steps:**
+  1. Review 3-month trends (Gerencia page)
+  2. Identify seasonal patterns
+  3. Assess new client acquisition
+  4. Review product mix changes
+  5. Update strategic priorities
+</Accordion>
+
+## Filter Impact on KPIs
+
+<Note>
+All KPI calculations use the filtered dataset. This means your objectives and comparisons also filter to match.
+</Note>
+
+### Objectives Filtering
+
+When you filter by seller or zone, objectives automatically adjust:
+
+```python
+# Only objectives for filtered sellers are included
+# Source: src/kpi_engine.py:414-428
+obj_periodo = _get_objetivo_periodo(objetivos_df, fecha_desde, fecha_hasta)
+grp = grp.merge(obj_periodo, on="id_vendedor", how="left")
+```
+
+### Previous Period Comparison
+
+The system calculates an equivalent previous period with matching duration:
+
+```python
+# Example: If you select Jan 15 - Feb 15 (32 days)
+# Previous period will be Dec 14 - Jan 14 (32 days)
+# Source: config.py:188-193
+duracion = (fecha_hasta - fecha_desde).days + 1
+nueva_hasta = fecha_desde - relativedelta(days=1)
+nueva_desde = nueva_hasta - relativedelta(days=duracion - 1)
+```
+
+<Tip>
+Delta percentages (▲ +8.2% or ▼ -3.1%) are always calculated against the equivalent previous period with the **same filters applied**.
+</Tip>
+
+## Troubleshooting Filters
+
+<AccordionGroup>
+  <Accordion title="No Data Appears After Filtering">
+    **Possible causes:**
+    1. No transactions match the filter combination
+    2. Date range is outside available data
+    3. Selected sellers have no activity in the period
+    
+    **Solution:**
+    1. Click "🔄 Limpiar filtros" to reset
+    2. Verify date range contains data (check raw Excel file)
+    3. Remove filters one by one to identify the restrictive filter
+  </Accordion>
+
+  <Accordion title="Filters Not Persisting Between Pages">
+    **Expected behavior:** Filters should persist across pages
+    
+    **If not working:**
+    1. Check browser console for errors
+    2. Verify `init_session_state()` is called on each page
+    3. Ensure you're not opening multiple tabs (each tab has separate session state)
+  </Accordion>
+
+  <Accordion title="Seller List Not Updating After Zone Selection">
+    **This is expected behavior.** The seller filter dynamically filters based on zone.
+    
+    **How it works:**
+    1. Select a zone
+    2. Seller list updates automatically
+    3. Previously selected sellers from other zones are cleared
+    
+    **Source:** `components/filters.py:143-147`
+  </Accordion>
+
+  <Accordion title="Cumplimiento Shows > 100%">
+    **This is correct.** Cumplimiento (fulfillment) can exceed 100% when actual sales surpass objectives.
+    
+    **Color coding:**
+    - 🟢 Green: ≥ 100% (objective met or exceeded)
+    - 🟡 Yellow: 80-99% (warning zone)
+    - 🔴 Red: < 80% (critical)
+    
+    **Thresholds defined in:** `config.py:38-43`
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Document Your Analysis" icon="file-lines">
+    When finding insights:
+    1. Note the exact filters used
+    2. Screenshot KPIs for records
+    3. Record date and time of analysis
+    4. Share filter settings with team
+  </Card>
+  
+  <Card title="Use Consistent Periods" icon="calendar-days">
+    For regular reporting:
+    - Weekly: Always use last 7 days
+    - Monthly: Use "Mes anterior" for completed months
+    - Quarterly: Use "Último trimestre"
+    - Never mix partial and complete periods in comparisons
+  </Card>
+  
+  <Card title="Validate Filter Logic" icon="check">
+    Before making decisions:
+    - Clear filters and view totals
+    - Apply one filter at a time
+    - Verify numbers add up correctly
+    - Check sample transactions in raw data
+  </Card>
+  
+  <Card title="Save Common Filter Combinations" icon="bookmark">
+    Document frequently used filters:
+    - Weekly sales review filters
+    - Monthly manager review filters  
+    - Executive summary filters
+    - Keep a reference document handy
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Interpreting KPIs" icon="chart-line" href="/guides/interpreting-kpis">
+    Learn what each KPI means and how to act on the insights
+  </Card>
+  <Card title="Using Alerts" icon="bell" href="/guides/using-alerts">
+    Understand how alerts are triggered and how to respond
+  </Card>
+</CardGroup>

@@ -1,0 +1,597 @@
+---
+title: 'UI Components'
+description: 'Reusable Streamlit components for charts, KPI cards, filters, and rankings'
+icon: 'palette'
+---
+
+The `components/` directory contains reusable UI building blocks for the Visor KPI Comercial dashboard. All components use a consistent design system defined in `config.py`.
+
+---
+
+## Charts Module
+
+### chart_evolucion_ventas
+
+```python
+def chart_evolucion_ventas(
+    df_mensual: pd.DataFrame,
+    mostrar_objetivo: bool = True,
+    title: str = "Evolución de Ventas vs Objetivo",
+) -> go.Figure
+```
+
+Line chart with area fill showing monthly sales evolution with optional objective overlay.
+
+**Parameters:**
+
+<ParamField path="df_mensual" type="pd.DataFrame" required>
+  Output from `kpi_evolucion_mensual()`. Requires columns: `periodo_str` (or `periodo`), `importe`, optional `objetivo`.
+</ParamField>
+
+<ParamField path="mostrar_objetivo" type="bool">
+  Show dotted objective line (default: `True`)
+</ParamField>
+
+<ParamField path="title" type="str">
+  Chart title
+</ParamField>
+
+**Returns:**
+
+`plotly.graph_objects.Figure` with applied theme
+
+**Features:**
+- Area fill under sales curve
+- Automatic max/min annotations
+- Hover unified mode
+- Responsive to theme colors
+
+**Usage Example:**
+
+```python
+from components.charts import chart_evolucion_ventas
+from src.kpi_engine import kpi_evolucion_mensual
+
+evo = kpi_evolucion_mensual(df, objetivos_df, n_meses=12)
+fig = chart_evolucion_ventas(evo, mostrar_objetivo=True)
+st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+```
+
+---
+
+### chart_barras_vendedores
+
+```python
+def chart_barras_vendedores(
+    df_vendedores: pd.DataFrame,
+    title: str = "Cumplimiento por Vendedor",
+) -> go.Figure
+```
+
+Horizontal bar chart of seller achievement with traffic light colors.
+
+**Parameters:**
+
+<ParamField path="df_vendedores" type="pd.DataFrame" required>
+  Output from `kpi_por_vendedor()`. Requires: `cumplimiento_pct`, `nombre_vendedor` (or `id_vendedor`), `color_semaforo`.
+</ParamField>
+
+**Features:**
+- Bars colored by traffic light status
+- Vertical lines at 100% (green) and 80% (orange)
+- Auto-adjusts height based on row count
+- Values displayed outside bars
+
+**Usage Example:**
+
+```python
+from components.charts import chart_barras_vendedores
+
+kv_df = kpi_por_vendedor(df, obj_df, df_ant, fecha_desde, fecha_hasta)
+fig = chart_barras_vendedores(kv_df.head(10), title="Top 10 Sellers")
+st.plotly_chart(fig, use_container_width=True)
+```
+
+---
+
+### chart_pareto
+
+```python
+def chart_pareto(
+    df_pareto: pd.DataFrame,
+    titulo: str = "Análisis Pareto",
+    col_nombre: str = "razon_social",
+    col_valor: str = "importe_total",
+    top_n: int = 30,
+) -> go.Figure
+```
+
+Pareto chart with bars (participation %) and cumulative line.
+
+**Parameters:**
+
+<ParamField path="df_pareto" type="pd.DataFrame" required>
+  Output from `calcular_pareto()`. Requires: `participacion_pct`, `acumulado_pct`, `categoria_pareto`.
+</ParamField>
+
+<ParamField path="col_nombre" type="str">
+  Column for X-axis labels (default: `"razon_social"`)
+</ParamField>
+
+<ParamField path="top_n" type="int">
+  Show only top N entities (default: 30)
+</ParamField>
+
+**Features:**
+- Dual Y-axes (participation left, cumulative right)
+- Bars colored by Pareto category (A=green, B=orange, C=gray)
+- Horizontal line at 80% cumulative
+
+**Usage Example:**
+
+```python
+from components.charts import chart_pareto
+from src.kpi_engine import kpi_clientes
+from src.data_loader import get_filtered_data, load_data
+
+kcli = kpi_clientes(df, clientes_df, df_ant, fecha_hasta)
+fig = chart_pareto(kcli, titulo="Top Clientes", col_nombre="razon_social", top_n=20)
+st.plotly_chart(fig)
+```
+
+---
+
+### chart_gauge_cumplimiento
+
+```python
+def chart_gauge_cumplimiento(
+    valor: float,
+    label: str = "Cumplimiento",
+    max_val: float = 1.20,
+) -> go.Figure
+```
+
+Semicircular gauge with traffic light zones.
+
+**Parameters:**
+
+<ParamField path="valor" type="float" required>
+  Achievement rate (0-1+). Example: 0.94 = 94%
+</ParamField>
+
+<ParamField path="max_val" type="float">
+  Maximum gauge value (default: 1.20 = 120%)
+</ParamField>
+
+**Features:**
+- Color zones: &lt;80% red, 80-100% orange, &gt;100% green
+- Delta display vs 100% objective
+- Responsive sizing
+
+**Usage Example:**
+
+```python
+from components.charts import chart_gauge_cumplimiento
+
+kv = kpi_ventas_periodo(df, df_ant, obj_df, fecha_desde, fecha_hasta)
+fig = chart_gauge_cumplimiento(valor=kv["cumplimiento_pct"], label="Equipo")
+st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+```
+
+---
+
+### chart_scatter_clientes
+
+```python
+def chart_scatter_clientes(
+    df_clientes: pd.DataFrame,
+    title: str = "Clientes: Frecuencia vs Importe",
+) -> go.Figure
+```
+
+Scatter plot: X=frequency, Y=amount, size=ticket, color=Pareto category.
+
+**Usage:**
+
+```python
+fig = chart_scatter_clientes(kcli, title="Matriz de Clientes")
+st.plotly_chart(fig)
+```
+
+---
+
+### chart_donut_canales
+
+```python
+def chart_donut_canales(
+    df: pd.DataFrame,
+    title: str = "Distribución por Canal",
+) -> go.Figure
+```
+
+Donut chart of sales by channel.
+
+**Usage:**
+
+```python
+fig = chart_donut_canales(df, title="Canales de Venta")
+st.plotly_chart(fig)
+```
+
+---
+
+### chart_treemap_productos
+
+```python
+def chart_treemap_productos(
+    df_productos: pd.DataFrame,
+    title: str = "Productos por Categoría",
+) -> go.Figure
+```
+
+Treemap by category > product, colored by growth vs prior period.
+
+**Usage:**
+
+```python
+kp_df = kpi_productos(df, df_ant)
+fig = chart_treemap_productos(kp_df, title="Mapa de Productos")
+st.plotly_chart(fig)
+```
+
+---
+
+### chart_heatmap_ventas
+
+```python
+def chart_heatmap_ventas(
+    df: pd.DataFrame,
+    title: str = "Actividad comercial por día",
+) -> go.Figure
+```
+
+Heatmap: X=week of month, Y=day of week.
+
+**Usage:**
+
+```python
+fig = chart_heatmap_ventas(df, title="Actividad del Equipo")
+st.plotly_chart(fig)
+```
+
+---
+
+## KPI Cards Module
+
+### render_kpi_card
+
+```python
+def render_kpi_card(
+    label: str,
+    value: str,
+    delta_pct: float | None = None,
+    objetivo: str | None = None,
+    cumplimiento: float | None = None,
+    width: str = "100%",
+    icon: str = "",
+) -> None
+```
+
+Renders a styled KPI card with progress bar and delta.
+
+**Parameters:**
+
+<ParamField path="label" type="str" required>
+  Card title (displayed uppercase)
+</ParamField>
+
+<ParamField path="value" type="str" required>
+  Main value (pre-formatted)
+</ParamField>
+
+<ParamField path="delta_pct" type="float | None">
+  Delta vs prior (ratio). Example: 0.15 → "+15.0%" with green ▲
+</ParamField>
+
+<ParamField path="objetivo" type="str | None">
+  Objective text (e.g., "$100,000")
+</ParamField>
+
+<ParamField path="cumplimiento" type="float | None">
+  Achievement (0-1) for progress bar and border color
+</ParamField>
+
+<ParamField path="icon" type="str">
+  Emoji icon (e.g., "💰")
+</ParamField>
+
+**Usage Example:**
+
+```python
+from components.kpi_card import render_kpi_card
+from config import fmt_moneda
+
+kv = kpi_ventas_periodo(df, df_ant, obj_df, fecha_desde, fecha_hasta)
+
+render_kpi_card(
+    label="Ventas del Período",
+    value=fmt_moneda(kv["importe_total"]),
+    delta_pct=kv["importe_vs_anterior"],
+    objetivo=fmt_moneda(kv["objetivo_total"]),
+    cumplimiento=kv["cumplimiento_pct"],
+    icon="💰"
+)
+```
+
+**Rendered Output:**
+
+
+
+---
+
+### render_kpi_card_simple
+
+```python
+def render_kpi_card_simple(
+    label: str,
+    value: str,
+    delta_pct: float | None = None,
+    color: str | None = None,
+) -> None
+```
+
+Simplified version without progress bar.
+
+**Usage:**
+
+```python
+render_kpi_card_simple("Transacciones", "1,284", delta_pct=0.08)
+```
+
+---
+
+### render_kpi_row
+
+```python
+def render_kpi_row(cards: list[dict]) -> None
+```
+
+Renders multiple KPI cards in equal-width columns.
+
+**Usage:**
+
+```python
+render_kpi_row([
+    {"label": "Ventas", "value": "$1.2M", "delta_pct": 0.12, "cumplimiento": 0.94, "icon": "💰"},
+    {"label": "Margen", "value": "$320K", "delta_pct": 0.05, "icon": "📈"},
+    {"label": "Clientes", "value": "342", "icon": "👥"},
+])
+```
+
+---
+
+## Rankings Module
+
+### render_ranking_vendedores
+
+```python
+def render_ranking_vendedores(
+    df_vendedores: pd.DataFrame,
+    max_rows: int = 12,
+) -> None
+```
+
+Styled HTML table with medals, progress bars, and ranking deltas.
+
+**Features:**
+- 🥇🥈🥉 medals for top 3
+- Inline progress bars colored by traffic light
+- ↑↓ ranking change indicators
+
+**Usage:**
+
+```python
+from components.rankings import render_ranking_vendedores
+
+kv_df = kpi_por_vendedor(df, obj_df, df_ant, fecha_desde, fecha_hasta)
+render_ranking_vendedores(kv_df, max_rows=10)
+```
+
+---
+
+### render_ranking_clientes
+
+```python
+def render_ranking_clientes(
+    df_clientes: pd.DataFrame,
+    top_n: int = 20,
+) -> None
+```
+
+Customer ranking with channel badges and Pareto category.
+
+**Usage:**
+
+```python
+kcli = kpi_clientes(df, clientes_df, df_ant, fecha_hasta)
+render_ranking_clientes(kcli, top_n=15)
+```
+
+---
+
+### render_ranking_productos
+
+```python
+def render_ranking_productos(
+    df_productos: pd.DataFrame,
+    top_n: int = 20,
+) -> None
+```
+
+Product ranking with category, participation %, and delta.
+
+**Usage:**
+
+```python
+kp_df = kpi_productos(df, df_ant)
+render_ranking_productos(kp_df, top_n=10)
+```
+
+---
+
+### render_posicion_ranking
+
+```python
+def render_posicion_ranking(
+    ranking_actual: int,
+    ranking_anterior: int,
+    total_vendedores: int,
+) -> None
+```
+
+Visual box showing seller's current rank with delta.
+
+**Usage:**
+
+```python
+fila = kv_all[kv_all["id_vendedor"] == vendedor_id].iloc[0]
+render_posicion_ranking(
+    ranking_actual=int(fila["ranking_actual"]),
+    ranking_anterior=int(fila["ranking_anterior"]),
+    total_vendedores=len(kv_all)
+)
+```
+
+---
+
+## Filters Module
+
+### render_sidebar_filters
+
+```python
+def render_sidebar_filters(mostrar_vendedor: bool = True) -> dict
+```
+
+Renders the global sidebar filter panel with session state persistence.
+
+**Parameters:**
+
+<ParamField path="mostrar_vendedor" type="bool">
+  Show vendor multi-select (default: `True`)
+</ParamField>
+
+**Returns:**
+
+Dictionary with selected filter values:
+
+```python
+{
+    "fecha_desde": date,
+    "fecha_hasta": date,
+    "vendedores_sel": list[str],
+    "zonas_sel": list[str],
+    "canales_sel": list[str],
+    "periodo_sel": str,
+}
+```
+
+**Usage Example:**
+
+```python
+from components.filters import render_sidebar_filters, init_session_state
+
+init_session_state()
+filtros = render_sidebar_filters()
+
+fecha_desde = filtros["fecha_desde"]
+fecha_hasta = filtros["fecha_hasta"]
+vendedores_sel = filtros["vendedores_sel"] or None
+zonas_sel = filtros["zonas_sel"] or None
+canales_sel = filtros["canales_sel"] or None
+
+df = get_filtered_data(fecha_desde, fecha_hasta, vendedores_sel, zonas_sel, canales_sel)
+```
+
+**Session State Keys:**
+
+- `periodo_sel`: Selected period label (e.g., "Este mes")
+- `fecha_desde`, `fecha_hasta`: Date range
+- `vendedores_sel`: List of seller IDs
+- `zonas_sel`: List of zone names
+- `canales_sel`: List of channel names
+- `alertas_revisadas`: Set of reviewed alert IDs
+- `data_loaded`: Boolean flag
+
+---
+
+### init_session_state
+
+```python
+def init_session_state() -> None
+```
+
+Initializes session state with default filter values if not present.
+
+**Default Values:**
+
+- Period: Current month (1st to today)
+- Vendors: Empty (all)
+- Zones: Empty (all)
+- Channels: Empty (all)
+
+**Usage:**
+
+```python
+from components.filters import init_session_state
+
+init_session_state()  # Call once at app startup
+```
+
+---
+
+## Component Theming
+
+All components use colors and fonts from `config.COLORS` and `config.PLOTLY_THEME`:
+
+```python
+from config import COLORS
+
+COLORS = {
+    "primary_light": "#2E5FA3",
+    "success": "#00C49F",
+    "warning": "#FFB347",
+    "danger": "#E84855",
+    "bg_dark": "#0E1117",
+    "bg_card": "#1C2127",
+    "text_primary": "#FAFAFA",
+    "text_secondary": "#8899AA",
+    "border": "#2D3748",
+}
+```
+
+**Custom Styling:**
+
+All HTML components accept inline styles. Example:
+
+```python
+st.markdown(
+    f"<div style='color:{COLORS['success']};font-weight:600'>✓ Objetivo alcanzado</div>",
+    unsafe_allow_html=True
+)
+```
+
+---
+
+## File Paths
+
+- `components/charts.py`
+- `components/kpi_card.py`
+- `components/rankings.py`
+- `components/filters.py`
+
+## Dependencies
+
+- `streamlit`
+- `plotly` (graph_objects, express)
+- `pandas`
+- `config` (colors, formatters)

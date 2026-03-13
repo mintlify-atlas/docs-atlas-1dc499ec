@@ -1,0 +1,452 @@
+---
+title: 'KPI Engine'
+description: 'Central calculation engine for all sales performance metrics'
+icon: 'calculator'
+---
+
+The `kpi_engine` module is the analytical core of Visor KPI Comercial. It processes filtered DataFrames and returns structured KPI dictionaries and analysis DataFrames ready for visualization.
+
+<Note>
+  All functions expect **pre-filtered** DataFrames. Use `data_loader` functions to filter data before passing to the KPI engine.
+</Note>
+
+---
+
+## Management KPIs
+
+### kpi_ventas_periodo
+
+```python
+def kpi_ventas_periodo(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+    objetivos_df: pd.DataFrame | None = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+) -> dict
+```
+
+Calculates aggregate sales KPIs for the period.
+
+**Parameters:**
+
+<ParamField path="df" type="pd.DataFrame" required>
+  Filtered sales DataFrame (current period)
+</ParamField>
+
+<ParamField path="df_anterior" type="pd.DataFrame | None">
+  Sales from prior period (for delta calculation)
+</ParamField>
+
+<ParamField path="objetivos_df" type="pd.DataFrame | None">
+  Objectives DataFrame (requires `periodo` and `objetivo` columns)
+</ParamField>
+
+<ParamField path="fecha_desde" type="date | None">
+  Start date (required if `objetivos_df` provided)
+</ParamField>
+
+<ParamField path="fecha_hasta" type="date | None">
+  End date (required if `objetivos_df` provided)
+</ParamField>
+
+**Returns:**
+
+Dictionary with keys:
+
+```python
+{
+    "importe_total": float,         # Total net sales
+    "importe_vs_anterior": float | None,  # Delta vs prior period (ratio)
+    "objetivo_total": float,        # Sum of objectives for period
+    "cumplimiento_pct": float | None,    # Achievement rate (0-1+)
+    "transacciones_count": int,     # Number of transactions
+    "ticket_promedio": float,       # Average ticket per customer
+    "clientes_unicos": int          # Unique customers
+}
+```
+
+**Usage Example:**
+
+```python
+from src.kpi_engine import kpi_ventas_periodo
+
+kv = kpi_ventas_periodo(df, df_ant, objetivos_df, fecha_desde, fecha_hasta)
+
+print(f"Sales: {kv['importe_total']:,.0f}")
+print(f"vs Prior: {kv['importe_vs_anterior']*100:.1f}%")
+print(f"Achievement: {kv['cumplimiento_pct']*100:.1f}%")
+```
+
+---
+
+### kpi_margen
+
+```python
+def kpi_margen(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+) -> dict
+```
+
+Calculates gross margin KPIs.
+
+**Returns:**
+
+```python
+{
+    "margen_bruto_total": float,    # Total gross margin ($)
+    "margen_pct_promedio": float,   # Average margin % (0-1)
+    "margen_vs_anterior": float | None  # Delta vs prior period
+}
+```
+
+**Usage Example:**
+
+```python
+km = kpi_margen(df, df_ant)
+print(f"Margin: ${km['margen_bruto_total']:,.0f} ({km['margen_pct_promedio']*100:.1f}%)")
+```
+
+---
+
+### kpi_cobertura_clientes
+
+```python
+def kpi_cobertura_clientes(
+    df: pd.DataFrame,
+    clientes_df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+) -> dict
+```
+
+Calculates customer portfolio coverage and health metrics.
+
+**Parameters:**
+
+<ParamField path="df" type="pd.DataFrame" required>
+  Current period sales
+</ParamField>
+
+<ParamField path="clientes_df" type="pd.DataFrame" required>
+  Customer master table (requires `id_cliente`, `activo` columns)
+</ParamField>
+
+<ParamField path="df_anterior" type="pd.DataFrame | None">
+  Prior period sales
+</ParamField>
+
+**Returns:**
+
+```python
+{
+    "clientes_activos_periodo": int,  # Active customers who purchased
+    "clientes_total": int,            # Total active customers in DB
+    "cobertura_pct": float,           # Coverage rate (0-1)
+    "clientes_perdidos": int,         # Bought before, not now
+    "clientes_nuevos": int,           # First purchase in period
+    "clientes_recuperados": int       # Reactivated customers
+}
+```
+
+**Usage Example:**
+
+```python
+kc = kpi_cobertura_clientes(df, clientes_df, df_ant)
+print(f"Coverage: {kc['cobertura_pct']*100:.1f}%")
+print(f"Lost: {kc['clientes_perdidos']}, New: {kc['clientes_nuevos']}")
+```
+
+---
+
+## Seller Analysis
+
+### kpi_por_vendedor
+
+```python
+def kpi_por_vendedor(
+    df: pd.DataFrame,
+    objetivos_df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+) -> pd.DataFrame
+```
+
+Returns a DataFrame with one row per seller and all KPIs calculated.
+
+**Returns:**
+
+DataFrame with columns:
+
+- `id_vendedor`, `nombre_vendedor`, `zona_vendedor`, `perfil`
+- `importe_total`, `transacciones`, `clientes_únicos`
+- `objetivo`, `cumplimiento_pct`
+- `ticket_promedio`
+- `importe_anterior`, `importe_vs_mes_anterior` (if `df_anterior` provided)
+- `ranking_actual`, `ranking_anterior`, `delta_ranking`
+- `color_semaforo` (hex color), `label_semaforo` ("success"/"warning"/"danger")
+
+**Traffic Light Logic:**
+
+- 🟢 **Verde** (`success`): `cumplimiento_pct >= 1.00`
+- 🟡 **Naranja** (`warning`): `0.80 <= cumplimiento_pct < 1.00`
+- 🔴 **Rojo** (`danger`): `cumplimiento_pct < 0.80`
+
+**Usage Example:**
+
+```python
+kv_df = kpi_por_vendedor(df, obj_df, df_ant, fecha_desde, fecha_hasta)
+
+# Top 5 sellers
+top5 = kv_df.head(5)
+for _, row in top5.iterrows():
+    print(f"{row['nombre_vendedor']}: {row['cumplimiento_pct']*100:.1f}% (Rank #{row['ranking_actual']})")
+
+# Count by traffic light
+n_verde = len(kv_df[kv_df['label_semaforo'] == 'success'])
+n_rojo = len(kv_df[kv_df['label_semaforo'] == 'danger'])
+print(f"Verde: {n_verde}, Rojo: {n_rojo}")
+```
+
+---
+
+## Product Analysis
+
+### kpi_productos
+
+```python
+def kpi_productos(
+    df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+) -> pd.DataFrame
+```
+
+Returns product KPIs with Pareto analysis.
+
+**Returns:**
+
+DataFrame with columns:
+
+- `id_producto`, `descripcion`, `categoria`
+- `importe_total`, `unidades_vendidas`, `n_transacciones`
+- `participacion_pct`, `acumulado_pct`, `categoria_pareto` ("A", "B", "C")
+- `importe_anterior`, `vs_periodo_anterior` (if `df_anterior` provided)
+
+**Pareto Categories:**
+
+- **A**: Top products contributing to 0-80% of cumulative sales
+- **B**: 80-95%
+- **C**: 95-100%
+
+**Usage Example:**
+
+```python
+kp_df = kpi_productos(df, df_ant)
+
+# Top 10 products
+print(kp_df.head(10)[["descripcion", "importe_total", "categoria_pareto"]])
+
+# Category A products
+top_products = kp_df[kp_df["categoria_pareto"] == "A"]
+print(f"Category A: {len(top_products)} products = {top_products['importe_total'].sum():,.0f}")
+```
+
+---
+
+## Customer Analysis
+
+### kpi_clientes
+
+```python
+def kpi_clientes(
+    df: pd.DataFrame,
+    clientes_df: pd.DataFrame,
+    df_anterior: pd.DataFrame | None = None,
+    fecha_hasta: date | None = None,
+) -> pd.DataFrame
+```
+
+Returns customer KPIs with Pareto analysis and risk flags.
+
+**Returns:**
+
+DataFrame with columns:
+
+- `id_cliente`, `razon_social`, `canal`, `zona`, `nombre_vendedor`
+- `importe_total`, `frecuencia_compra`, `ticket_promedio`
+- `ultima_compra`, `primera_compra`, `dias_desde_ultima_compra`
+- `participacion_pct`, `acumulado_pct`, `categoria_pareto`
+- `importe_anterior`, `vs_periodo_anterior`
+- `flag_en_riesgo` (bool)
+
+**Risk Flag Logic:**
+
+<Note>
+  `flag_en_riesgo = True` if customer is category A or B AND `dias_desde_ultima_compra > 30`
+</Note>
+
+**Usage Example:**
+
+```python
+kcli = kpi_clientes(df, clientes_df, df_ant, fecha_hasta)
+
+# At-risk customers
+en_riesgo = kcli[kcli["flag_en_riesgo"] == True]
+print(f"Customers at risk: {len(en_riesgo)}")
+
+# Top customers with recent activity
+top_activos = kcli[(kcli["categoria_pareto"] == "A") & (kcli["dias_desde_ultima_compra"] < 15)]
+```
+
+---
+
+## Time Series Analysis
+
+### kpi_evolucion_mensual
+
+```python
+def kpi_evolucion_mensual(
+    df: pd.DataFrame,
+    objetivos_df: pd.DataFrame | None = None,
+    id_vendedor: str | None = None,
+    n_meses: int = 13,
+) -> pd.DataFrame
+```
+
+Returns monthly sales evolution for trend charts.
+
+**Parameters:**
+
+<ParamField path="df" type="pd.DataFrame" required>
+  Sales DataFrame
+</ParamField>
+
+<ParamField path="objetivos_df" type="pd.DataFrame | None">
+  Objectives for overlay line
+</ParamField>
+
+<ParamField path="id_vendedor" type="str | None">
+  Filter to specific seller. `None` = all sellers.
+</ParamField>
+
+<ParamField path="n_meses" type="int">
+  Number of months to include (default: 13)
+</ParamField>
+
+**Returns:**
+
+DataFrame with columns:
+
+- `periodo` (Period object)
+- `periodo_str` (string representation)
+- `importe`, `n_ventas`, `n_clientes`
+- `objetivo` (if `objetivos_df` provided)
+
+**Usage Example:**
+
+```python
+evo = kpi_evolucion_mensual(df, objetivos_df, n_meses=6)
+
+# Pass to chart
+from components.charts import chart_evolucion_ventas
+fig = chart_evolucion_ventas(evo, mostrar_objetivo=True)
+st.plotly_chart(fig)
+```
+
+---
+
+## Executive Insights
+
+### generar_insight_ejecutivo
+
+```python
+def generar_insight_ejecutivo(
+    kpi_ventas: dict,
+    kpi_vend: pd.DataFrame,
+    alertas_df: pd.DataFrame | None = None,
+) -> str
+```
+
+Generates a dynamic executive summary paragraph.
+
+**Parameters:**
+
+<ParamField path="kpi_ventas" type="dict" required>
+  Output from `kpi_ventas_periodo()`
+</ParamField>
+
+<ParamField path="kpi_vend" type="pd.DataFrame" required>
+  Output from `kpi_por_vendedor()`
+</ParamField>
+
+<ParamField path="alertas_df" type="pd.DataFrame | None">
+  Output from `get_alertas_activas()`
+</ParamField>
+
+**Returns:**
+
+Markdown-formatted string with:
+- Total sales and delta
+- Achievement percentage
+- Traffic light distribution
+- Alert summary
+
+**Usage Example:**
+
+```python
+from src.kpi_engine import generar_insight_ejecutivo
+
+insight = generar_insight_ejecutivo(kv, kv_df, alertas)
+st.markdown(f'<div class="insight-box">{insight}</div>', unsafe_allow_html=True)
+```
+
+**Sample Output:**
+
+> El equipo lleva **$4,523,890** en ventas, **+12.3%** vs período anterior, alcanzando el **94.2%** del objetivo. 8 vendedores están en 🟢 verde, 3 en 🟡 naranja y 1 en 🔴 rojo. Se detectaron **7 alertas activas**: 2 críticas, 3 medias, 2 informativas.
+
+---
+
+## Real-World Usage
+
+### In app.py (Executive Dashboard)
+
+```python
+from src.kpi_engine import (
+    kpi_ventas_periodo, kpi_margen, kpi_cobertura_clientes,
+    kpi_por_vendedor, kpi_clientes, kpi_productos,
+    kpi_evolucion_mensual, generar_insight_ejecutivo,
+)
+
+kv = kpi_ventas_periodo(df, df_ant, objetivos_df, fecha_desde, fecha_hasta)
+km = kpi_margen(df, df_ant)
+kc = kpi_cobertura_clientes(df, clientes_df, df_ant)
+kv_df = kpi_por_vendedor(df, objetivos_df, df_ant, fecha_desde, fecha_hasta)
+
+render_kpi_card("Ventas del Período", fmt_moneda(kv["importe_total"]),
+                delta_pct=kv["importe_vs_anterior"],
+                cumplimiento=kv["cumplimiento_pct"])
+```
+
+### In pages/1_gerencia.py (Management View)
+
+```python
+kv = kpi_ventas_periodo(df, df_ant, obj_df, fecha_desde, fecha_hasta)
+kv_df = kpi_por_vendedor(df, obj_df, df_ant, fecha_desde, fecha_hasta)
+evo = kpi_evolucion_mensual(df, obj_df)
+
+n_verde = len(kv_df[kv_df["label_semaforo"] == "success"])
+render_kpi_card("Vendedores en verde", str(n_verde), cumplimiento=n_verde/12)
+```
+
+---
+
+## File Path
+
+`src/kpi_engine.py`
+
+## Dependencies
+
+- `pandas`, `numpy`
+- `src.pareto.calcular_pareto`
+- `config.fmt_moneda`, `config.fmt_pct`, `config.fmt_delta`

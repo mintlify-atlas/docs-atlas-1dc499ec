@@ -1,0 +1,727 @@
+---
+title: Troubleshooting
+description: Common issues, error messages, and solutions for Visor KPI Comercial
+icon: wrench
+---
+
+This guide covers common issues you may encounter when developing, testing, or deploying Visor KPI Comercial, along with their solutions.
+
+## Data File Issues
+
+<AccordionGroup>
+  <Accordion title="FileNotFoundError: mock_data.xlsx not found" icon="file-excel">
+    **Error Message:**
+    ```
+    FileNotFoundError: [Errno 2] No such file or directory: 
+    'visor_kpi/data/raw/mock_data.xlsx'
+    ```
+    
+    **Cause**: The mock data file hasn't been generated yet.
+    
+    **Solution**:
+    ```bash
+    cd visor_kpi
+    python data/mock/generate_mock_data.py
+    ```
+    
+    This creates `data/raw/mock_data.xlsx` with:
+    - 27 months of sales data (Jan 2023 - Mar 2026)
+    - 12 vendors, 180 clients, 60 products
+    - ~30,000 transaction records
+    
+    <Check>
+    Verify file exists:
+    ```bash
+    ls -lh data/raw/mock_data.xlsx
+    # Should show file ~2MB
+    ```
+    </Check>
+  </Accordion>
+
+  <Accordion title="ValueError: Excel file has no Worksheets" icon="table">
+    **Error Message:**
+    ```python
+    ValueError: Excel file format cannot be determined, you must specify an engine manually.
+    # or
+    ValueError: Worksheet 'Ventas' does not exist.
+    ```
+    
+    **Cause**: Corrupted or incomplete Excel file.
+    
+    **Solutions**:
+    
+    1. **Regenerate the data file**:
+       ```bash
+       cd visor_kpi
+       rm data/raw/mock_data.xlsx  # Delete corrupted file
+       python data/mock/generate_mock_data.py
+       ```
+    
+    2. **Verify sheet names** (if using custom data):
+       ```python
+       import pandas as pd
+       xl = pd.ExcelFile("data/raw/mock_data.xlsx")
+       print(xl.sheet_names)
+       # Expected: ['Ventas', 'Vendedores', 'Clientes', 'Productos', 'Objetivos']
+       ```
+    
+    3. **Check openpyxl installation**:
+       ```bash
+       pip install --upgrade openpyxl
+       ```
+  </Accordion>
+
+  <Accordion title="MemoryError when loading large Excel files" icon="memory">
+    **Error Message:**
+    ```
+    MemoryError: Unable to allocate array
+    ```
+    
+    **Cause**: Excel file is too large (>100MB) or system has insufficient memory.
+    
+    **Solutions**:
+    
+    1. **Load only required sheets**:
+       ```python
+       # Instead of loading all sheets
+       ventas = pd.read_excel(DATA_PATH, sheet_name="Ventas")
+       ```
+    
+    2. **Reduce date range** in data generation:
+       ```python
+       # In generate_mock_data.py
+       START_DATE = date(2024, 1, 1)  # Instead of 2023
+       END_DATE = date(2026, 3, 31)
+       ```
+    
+    3. **Optimize dtypes** to reduce memory:
+       ```python
+       ventas = pd.read_excel(DATA_PATH, sheet_name="Ventas", dtype={
+           "id_vendedor": "category",
+           "id_cliente": "category",
+           "id_producto": "category",
+       })
+       ```
+  </Accordion>
+
+  <Accordion title="KeyError: 'importe_neto' or other column" icon="key">
+    **Error Message:**
+    ```python
+    KeyError: 'importe_neto'
+    ```
+    
+    **Cause**: Required column is missing from the Excel sheet.
+    
+    **Solution**: Verify column names match exactly:
+    
+    ```python
+    import pandas as pd
+    ventas = pd.read_excel("data/raw/mock_data.xlsx", sheet_name="Ventas")
+    print(ventas.columns.tolist())
+    # Expected columns:
+    # ['id_venta', 'fecha', 'id_vendedor', 'id_cliente', 
+    #  'id_producto', 'cantidad', 'importe_neto', 'importe_bruto']
+    ```
+    
+    If columns are wrong, regenerate the data file.
+  </Accordion>
+</AccordionGroup>
+
+## Dependency Issues
+
+<AccordionGroup>
+  <Accordion title="ModuleNotFoundError: No module named 'streamlit'" icon="box-open">
+    **Error Message:**
+    ```
+    ModuleNotFoundError: No module named 'streamlit'
+    ```
+    
+    **Cause**: Dependencies not installed.
+    
+    **Solution**:
+    ```bash
+    cd visor_kpi
+    pip install -r requirements.txt
+    ```
+    
+    <Info>
+    **Best Practice**: Use a virtual environment:
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate  # macOS/Linux
+    .venv\Scripts\activate     # Windows
+    pip install -r requirements.txt
+    ```
+    </Info>
+  </Accordion>
+
+  <Accordion title="ImportError: cannot import name 'kpi_ventas_periodo'" icon="code">
+    **Error Message:**
+    ```python
+    ImportError: cannot import name 'kpi_ventas_periodo' from 'src.kpi_engine'
+    ```
+    
+    **Cause**: Python path not set correctly, or running from wrong directory.
+    
+    **Solution**: Always run from the `visor_kpi/` directory:
+    ```bash
+    cd visor_kpi
+    streamlit run app.py
+    # or
+    pytest tests/ -v
+    ```
+    
+    <Warning>
+    Do NOT run from the repository root:
+    ```bash
+    # ❌ WRONG
+    cd excel-to-kpi-dashboard
+    streamlit run visor_kpi/app.py
+    
+    # ✅ CORRECT
+    cd excel-to-kpi-dashboard/visor_kpi
+    streamlit run app.py
+    ```
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Version conflicts: 'pandas requires numpy<2.0'" icon="code-branch">
+    **Error Message:**
+    ```
+    ERROR: pandas 2.2.0 requires numpy<2.0,>=1.26.0, but you have numpy 2.1.0
+    ```
+    
+    **Cause**: Conflicting dependency versions.
+    
+    **Solution**:
+    ```bash
+    pip install --upgrade pip
+    pip uninstall numpy pandas -y
+    pip install -r requirements.txt
+    ```
+    
+    Or force exact versions:
+    ```bash
+    pip install numpy==1.26.4 pandas==2.2.0
+    ```
+  </Accordion>
+
+  <Accordion title="pytest not found" icon="flask-vial">
+    **Error Message:**
+    ```
+    bash: pytest: command not found
+    ```
+    
+    **Cause**: pytest not installed in current environment.
+    
+    **Solution**:
+    ```bash
+    pip install pytest
+    # or
+    python -m pytest tests/ -v
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Streamlit Runtime Issues
+
+<AccordionGroup>
+  <Accordion title="Streamlit app hangs at 'Running script...'" icon="hourglass">
+    **Symptoms**: App loads indefinitely without displaying content.
+    
+    **Possible Causes & Solutions**:
+    
+    1. **Infinite loop in code**:
+       - Check for while loops without proper exit conditions
+       - Look for recursive function calls
+    
+    2. **Data loading timeout**:
+       - Add timeout to Excel reading:
+       ```python
+       import signal
+       
+       def timeout_handler(signum, frame):
+           raise TimeoutError("Data loading timeout")
+       
+       signal.signal(signal.SIGALRM, timeout_handler)
+       signal.alarm(10)  # 10 second timeout
+       data = pd.read_excel(DATA_PATH)
+       signal.alarm(0)
+       ```
+    
+    3. **Large dataset processing**:
+       - Use `@st.cache_data` to cache expensive operations
+       - Show loading spinner:
+       ```python
+       with st.spinner("Cargando datos..."):
+           data = load_data()
+       ```
+  </Accordion>
+
+  <Accordion title="StreamlitAPIException: st.cache_data is not defined" icon="triangle-exclamation">
+    **Error Message:**
+    ```python
+    AttributeError: module 'streamlit' has no attribute 'cache_data'
+    ```
+    
+    **Cause**: Using old Streamlit version (&lt;1.18.0).
+    
+    **Solution**: Upgrade Streamlit:
+    ```bash
+    pip install --upgrade streamlit
+    # Visor KPI requires streamlit>=1.32.0
+    ```
+    
+    Or use legacy cache:
+    ```python
+    # For Streamlit versions before 1.18
+    @st.cache
+    def load_data():
+        return pd.read_excel(DATA_PATH)
+    ```
+  </Accordion>
+
+  <Accordion title="Session state key error" icon="database">
+    **Error Message:**
+    ```python
+    KeyError: 'fecha_desde'
+    ```
+    
+    **Cause**: Session state not initialized before use.
+    
+    **Solution**: Always initialize session state:
+    ```python
+    # At top of page
+    if "fecha_desde" not in st.session_state:
+        st.session_state["fecha_desde"] = date(2023, 1, 1)
+    
+    if "fecha_hasta" not in st.session_state:
+        st.session_state["fecha_hasta"] = date.today()
+    
+    # Then use safely
+    fecha_desde = st.session_state["fecha_desde"]
+    ```
+  </Accordion>
+
+  <Accordion title="Plotly charts not displaying" icon="chart-line">
+    **Symptoms**: Blank space where chart should be, or error "Plotly object has no attribute..."
+    
+    **Solutions**:
+    
+    1. **Verify Plotly version**:
+       ```bash
+       pip install plotly>=5.19.0
+       ```
+    
+    2. **Check data is not empty**:
+       ```python
+       if df.empty:
+           st.warning("No hay datos para mostrar")
+       else:
+           fig = px.line(df, x="fecha", y="importe_neto")
+           st.plotly_chart(fig)
+       ```
+    
+    3. **Browser console errors**: Open browser DevTools (F12) and check Console tab for JavaScript errors.
+  </Accordion>
+</AccordionGroup>
+
+## Test Failures
+
+<AccordionGroup>
+  <Accordion title="Tests skipped: 'Data file not found'" icon="file-excel">
+    **Message:**
+    ```
+    SKIPPED [18] tests/test_mock_data.py:23: Archivo de datos no encontrado
+    ```
+    
+    **Cause**: Mock data not generated.
+    
+    **Solution**:
+    ```bash
+    cd visor_kpi
+    python data/mock/generate_mock_data.py
+    pytest tests/ -v
+    ```
+  </Accordion>
+
+  <Accordion title="AssertionError: Expected 12 vendors, got 0" icon="users">
+    **Error Message:**
+    ```python
+    AssertionError: Expected: 12, obtained: 0
+    ```
+    
+    **Cause**: Empty or malformed Excel sheets.
+    
+    **Solution**: Regenerate data and verify:
+    ```bash
+    cd visor_kpi
+    rm data/raw/mock_data.xlsx
+    python data/mock/generate_mock_data.py
+    
+    # Verify data
+    python -c "
+    import pandas as pd
+    xl = pd.ExcelFile('data/raw/mock_data.xlsx')
+    print('Vendors:', len(xl.parse('Vendedores')))
+    print('Clients:', len(xl.parse('Clientes')))
+    print('Products:', len(xl.parse('Productos')))
+    "
+    ```
+  </Accordion>
+
+  <Accordion title="Test timeout or hangs" icon="clock">
+    **Symptoms**: Test runs for >2 minutes without completing.
+    
+    **Solution**: Run with timeout:
+    ```bash
+    pytest tests/ -v --timeout=60
+    ```
+    
+    Or identify slow test:
+    ```bash
+    pytest tests/ -v --durations=10
+    # Shows slowest 10 tests
+    ```
+  </Accordion>
+
+  <Accordion title="Pareto test fails: 'Suma participacion_pct: 0.9987'" icon="chart-pie">
+    **Error Message:**
+    ```python
+    AssertionError: Suma de participacion_pct: 0.9987 (esperado ~1.0)
+    ```
+    
+    **Cause**: Floating point precision issue, usually acceptable.
+    
+    **Check**: If error is less than 0.01, this is normal rounding. The test allows 1% tolerance:
+    ```python
+    assert abs(total_pct - 1.0) < 0.01  # Passes for 0.9987
+    ```
+    
+    If error is larger, check for:
+    - Negative values in data
+    - NaN values in aggregation
+    - Incorrect groupby logic
+  </Accordion>
+</AccordionGroup>
+
+## Deployment Issues
+
+<AccordionGroup>
+  <Accordion title="Streamlit Cloud: 'Could not find a version that satisfies...'" icon="cloud">
+    **Error Message:**
+    ```
+    ERROR: Could not find a version that satisfies the requirement streamlit>=1.32.0
+    ```
+    
+    **Cause**: Python version on Streamlit Cloud is too old (e.g., 3.7 or 3.8).
+    
+    **Solution**: In Streamlit Cloud dashboard, set Python version to **3.10 or higher**:
+    - Click on app settings
+    - Advanced settings
+    - Python version: 3.10
+    - Save and redeploy
+  </Accordion>
+
+  <Accordion title="Deployment succeeds but app shows blank page" icon="file-excel">
+    **Symptoms**: Streamlit Cloud deploys successfully, but accessing the URL shows empty page or error.
+    
+    **Solutions**:
+    
+    1. **Check logs** in Streamlit Cloud dashboard:
+       - Look for FileNotFoundError or import errors
+    
+    2. **Verify main file path** in settings:
+       ```
+       visor_kpi/app.py
+       ```
+       NOT `app.py` (missing visor_kpi/ prefix)
+    
+    3. **Ensure data file is committed**:
+       ```bash
+       git add data/raw/mock_data.xlsx
+       git commit -m "Add data file"
+       git push origin main
+       ```
+  </Accordion>
+
+  <Accordion title="App works locally but fails in production" icon="bug">
+    **Common causes**:
+    
+    1. **Absolute paths**: Use relative paths only
+       ```python
+       # ❌ WRONG
+       DATA_PATH = "/Users/username/project/data/mock_data.xlsx"
+       
+       # ✅ CORRECT
+       BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+       DATA_PATH = os.path.join(BASE_DIR, "data", "raw", "mock_data.xlsx")
+       ```
+    
+    2. **Environment-specific code**:
+       ```python
+       # Avoid system-specific calls
+       # os.system("cls")  # Windows-only
+       # subprocess.run(["ls"])  # Unix-only
+       ```
+    
+    3. **Missing dependencies**: Check `requirements.txt` includes ALL imports used in code.
+  </Accordion>
+
+  <Accordion title="502 Bad Gateway on Streamlit Cloud" icon="server">
+    **Symptoms**: Intermittent 502 errors when accessing the app.
+    
+    **Causes & Solutions**:
+    
+    1. **App crashed**: Check logs for exceptions. Common:
+       - Out of memory (reduce data size)
+       - Unhandled exception in code
+    
+    2. **Cold start timeout**: First request after inactivity takes longer. Add:
+       ```python
+       # In app.py
+       st.set_page_config(
+           page_title="Visor KPI",
+           page_icon="📊",
+           initial_sidebar_state="expanded",
+       )
+       ```
+    
+    3. **Upgrade Streamlit Cloud tier**: Free tier has resource limits. Consider upgrading for production use.
+  </Accordion>
+</AccordionGroup>
+
+## Performance Issues
+
+<AccordionGroup>
+  <Accordion title="App is slow to load (>10 seconds)" icon="gauge">
+    **Optimization strategies**:
+    
+    1. **Cache data loading**:
+       ```python
+       @st.cache_data(ttl=3600)  # Cache for 1 hour
+       def load_data():
+           xl = pd.ExcelFile(DATA_PATH)
+           return {
+               "ventas": xl.parse("Ventas"),
+               "clientes": xl.parse("Clientes"),
+           }
+       ```
+    
+    2. **Lazy load pages**: Don't load all data upfront
+       ```python
+       # Only load what current page needs
+       if current_page == "clientes":
+           df_clientes = load_clientes()
+       ```
+    
+    3. **Reduce Excel file size**:
+       - Limit date range to recent 12 months
+       - Remove unnecessary columns
+       - Use Parquet instead of Excel:
+       ```python
+       df.to_parquet("data/raw/ventas.parquet")
+       df = pd.read_parquet("data/raw/ventas.parquet")  # 10x faster
+       ```
+  </Accordion>
+
+  <Accordion title="Charts take long to render" icon="chart-line">
+    **Solutions**:
+    
+    1. **Sample data for scatter plots**:
+       ```python
+       # Don't plot 30k points
+       df_sample = df.sample(n=1000) if len(df) > 1000 else df
+       fig = px.scatter(df_sample, x="frecuencia", y="importe")
+       ```
+    
+    2. **Use Plotly express instead of graph_objects** (faster):
+       ```python
+       # ✅ Faster
+       fig = px.bar(df, x="vendedor", y="ventas")
+       
+       # ❌ Slower
+       fig = go.Figure(data=[go.Bar(x=df["vendedor"], y=df["ventas"])])
+       ```
+    
+    3. **Simplify chart complexity**:
+       - Reduce number of series
+       - Aggregate data before plotting
+       - Disable animations: `fig.update_layout(transition_duration=0)`
+  </Accordion>
+
+  <Accordion title="High memory usage (>2GB)" icon="memory">
+    **Diagnosis**:
+    ```python
+    import sys
+    print(f"DataFrame memory: {df.memory_usage(deep=True).sum() / 1e6:.1f} MB")
+    ```
+    
+    **Optimization**:
+    ```python
+    # Convert to efficient dtypes
+    df["id_vendedor"] = df["id_vendedor"].astype("category")
+    df["id_cliente"] = df["id_cliente"].astype("category")
+    df["fecha"] = pd.to_datetime(df["fecha"])
+    
+    # Remove unused columns
+    df = df[["fecha", "id_vendedor", "importe_neto"]]
+    
+    # Use float32 instead of float64 where precision allows
+    df["importe_neto"] = df["importe_neto"].astype("float32")
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Data Quality Issues
+
+<AccordionGroup>
+  <Accordion title="NaN values in calculations" icon="calculator">
+    **Error Message:**
+    ```python
+    RuntimeWarning: invalid value encountered in double_scalars
+    ```
+    
+    **Solution**: Handle NaN explicitly:
+    ```python
+    # Before calculation
+    df["importe_neto"] = df["importe_neto"].fillna(0)
+    
+    # Or filter out
+    df = df.dropna(subset=["importe_neto", "cantidad"])
+    
+    # Safe division
+    df["precio_promedio"] = np.where(
+        df["cantidad"] > 0,
+        df["importe_neto"] / df["cantidad"],
+        0
+    )
+    ```
+  </Accordion>
+
+  <Accordion title="Date parsing errors: 'time data does not match format'" icon="calendar">
+    **Error Message:**
+    ```python
+    ValueError: time data '2023-13-01' does not match format '%Y-%m-%d'
+    ```
+    
+    **Cause**: Invalid dates in Excel (e.g., month 13).
+    
+    **Solution**: Use error handling:
+    ```python
+    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
+    # Invalid dates become NaT (Not a Time)
+    
+    # Remove invalid dates
+    df = df.dropna(subset=["fecha"])
+    
+    # Or log them for review
+    invalid = df[df["fecha"].isna()]
+    if not invalid.empty:
+        st.warning(f"Fechas inválidas encontradas: {len(invalid)}")
+    ```
+  </Accordion>
+
+  <Accordion title="Duplicate transaction IDs" icon="copy">
+    **Diagnosis**:
+    ```python
+    dupes = df[df.duplicated(subset=["id_venta"], keep=False)]
+    print(f"Duplicates found: {len(dupes)}")
+    ```
+    
+    **Solution**:
+    ```python
+    # Keep first occurrence
+    df = df.drop_duplicates(subset=["id_venta"], keep="first")
+    
+    # Or combine duplicates
+    df = df.groupby("id_venta").agg({
+        "importe_neto": "sum",
+        "cantidad": "sum",
+        "fecha": "first",
+    }).reset_index()
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="Check Logs" icon="file-lines">
+    View detailed error messages:
+    ```bash
+    streamlit run app.py --logger.level=debug
+    ```
+  </Card>
+
+  <Card title="Validate Data" icon="circle-check">
+    Run data validation tests:
+    ```bash
+    pytest tests/test_mock_data.py -v
+    ```
+  </Card>
+
+  <Card title="GitHub Issues" icon="github" href="https://github.com/ricardobing/excel-to-kpi-dashboard/issues">
+    Report bugs or request features
+  </Card>
+
+  <Card title="Streamlit Docs" icon="book" href="https://docs.streamlit.io">
+    Official Streamlit documentation
+  </Card>
+</CardGroup>
+
+## Debug Checklist
+
+When troubleshooting, systematically check:
+
+<Steps>
+  <Step title="Environment">
+    ```bash
+    python --version  # Should be 3.10+
+    pip list | grep -E "streamlit|pandas|plotly"
+    pwd  # Should be in visor_kpi/
+    ```
+  </Step>
+
+  <Step title="Data File">
+    ```bash
+    ls -lh data/raw/mock_data.xlsx
+    python -c "import pandas as pd; print(pd.ExcelFile('data/raw/mock_data.xlsx').sheet_names)"
+    ```
+  </Step>
+
+  <Step title="Dependencies">
+    ```bash
+    pip install -r requirements.txt
+    python -c "import streamlit, pandas, plotly; print('OK')"
+    ```
+  </Step>
+
+  <Step title="Tests">
+    ```bash
+    pytest tests/ -v --tb=short
+    # --tb=short shows concise error messages
+    ```
+  </Step>
+
+  <Step title="Run App">
+    ```bash
+    streamlit run app.py --logger.level=debug
+    # Check terminal output for errors
+    ```
+  </Step>
+</Steps>
+
+## Related Documentation
+
+<CardGroup cols={3}>
+  <Card title="Testing" icon="flask-vial" href="./testing">
+    Run comprehensive tests
+  </Card>
+  <Card title="Deployment" icon="rocket" href="./deployment">
+    Deploy to production
+  </Card>
+  <Card title="Configuration" icon="gear" href="/dev/configuration">
+    Customize settings
+  </Card>
+</CardGroup>
