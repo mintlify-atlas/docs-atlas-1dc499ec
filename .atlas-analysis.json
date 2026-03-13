@@ -1,0 +1,119 @@
+{
+  "projectType": "saas",
+  "projectName": "Visor KPI Comercial",
+  "projectDescription": "Sales intelligence dashboard that transforms Excel sales data into actionable KPIs and business insights for distribution teams.",
+  "theme": "almond",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/executive-dashboard",
+              "features/management-view",
+              "features/sales-team-tracking",
+              "features/customer-analysis",
+              "features/product-analytics",
+              "features/alerts-center"
+            ]
+          },
+          {
+            "group": "User Guides",
+            "pages": [
+              "guides/data-import",
+              "guides/filtering-data",
+              "guides/interpreting-kpis",
+              "guides/using-alerts"
+            ]
+          },
+          {
+            "group": "Data & Analytics",
+            "pages": [
+              "analytics/kpi-calculations",
+              "analytics/pareto-analysis",
+              "analytics/performance-metrics",
+              "analytics/alert-rules"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Developer Guide",
+        "groups": [
+          {
+            "group": "Architecture",
+            "pages": [
+              "dev/architecture-overview",
+              "dev/project-structure",
+              "dev/tech-stack"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "dev/data-loader",
+              "dev/kpi-engine",
+              "dev/alerts-engine",
+              "dev/pareto-module",
+              "dev/ui-components"
+            ]
+          },
+          {
+            "group": "Customization",
+            "pages": [
+              "dev/configuration",
+              "dev/custom-kpis",
+              "dev/custom-alerts",
+              "dev/styling"
+            ]
+          },
+          {
+            "group": "Testing & Deployment",
+            "pages": [
+              "dev/testing",
+              "dev/deployment",
+              "dev/troubleshooting"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Excel-to-KPI automated ETL pipeline",
+    "Real-time sales performance tracking",
+    "Multi-view dashboards (Executive, Manager, Sales Rep)",
+    "Customer portfolio analysis with Pareto classification",
+    "Product analytics and rotation tracking",
+    "Intelligent alert system with 7 business rules",
+    "Interactive Plotly visualizations",
+    "Export capabilities for reports"
+  ],
+  "publicApiSurface": [
+    "load_data() - Excel data ingestion",
+    "get_filtered_data() - Data filtering by date/vendor/zone",
+    "kpi_ventas_periodo() - Period sales KPIs",
+    "kpi_por_vendedor() - Sales rep performance",
+    "kpi_clientes() - Customer metrics",
+    "kpi_productos() - Product analytics",
+    "calcular_pareto() - Pareto 80/20 analysis",
+    "get_alertas_activas() - Active alerts engine",
+    "render_kpi_card() - KPI card component",
+    "chart_evolucion_ventas() - Sales evolution chart",
+    "chart_gauge_cumplimiento() - Goal fulfillment gauge",
+    "render_ranking_vendedores() - Sales rep ranking table"
+  ]
+}
